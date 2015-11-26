@@ -1,18 +1,17 @@
+# -*- coding: utf8 -*-
 import os
-import sys
+import logging
 import subprocess
-import shlex
 import tempfile
-import quickstartlog as qslog
 
 
 __version__ = '0.1.0'
 
 
-if sys.version_info[0] == 3:
-    pass
-else:
-    pass
+_logger = logging.getLogger("quickstartutil")
+def set_logger(logger):
+    global _logger
+    _logger = logger
 
 
 class Error(Exception):
@@ -34,7 +33,7 @@ class PathError(Error):
 
 def system(cmd):
     """raise SystemExecError on failure"""
-    qslog.info('>>> %s' % cmd)
+    _logger.info('>>> %s' % cmd)
     code = os.system(cmd)
     if code != 0:
         final_code = code if os.name == 'nt' else (code >> 8)
@@ -56,12 +55,12 @@ class ChangeDirectory:
         self.target = target
 
     def __enter__(self):
-        qslog.info(">>> cd %s", self.target)
+        _logger.info(">>> cd %s", self.target)
         os.chdir(self.target)
         return self
 
     def __exit__(self, exc_type, exc_value, exc_tb):
-        qslog.info(">>> cd %s", self.old_cwd)
+        _logger.info(">>> cd %s", self.old_cwd)
         os.chdir(self.old_cwd)
 
 
