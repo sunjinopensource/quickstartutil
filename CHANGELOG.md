@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+
+fix system locale error
+
 ## 0.1.1
 
 + svn.

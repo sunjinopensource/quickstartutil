@@ -1,5 +1,7 @@
 # -*- coding: utf8 -*-
 import os
+import sys
+import locale
 import logging
 import subprocess
 import tempfile
@@ -10,13 +12,31 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-__version__ = '0.1.1'
+__version__ = '0.1.2'
+
+
+if sys.version_info[0] == 3:
+    _PY3 = True
+else:
+    _PY3 = False
 
 
 _logger = logging.getLogger('quickstartutil')
 def set_logger(logger):
     global _logger
     _logger = logger
+
+
+_local_encoding = locale.getdefaultlocale()[1]
+def set_local_encoding(local_encoding):
+    global _local_encoding
+    _local_encoding = local_encoding
+
+def _to_local_str(cmd):
+    if _PY3:
+        return cmd
+    else:
+        return cmd.decode('utf8').encode(_local_encoding)
 
 
 class Error(Exception):
@@ -50,7 +70,7 @@ class SvnCommitWithoutMessageError(SvnError):
 def system(cmd):
     """raise SystemExecError on failure"""
     _logger.info('>>> %s' % cmd)
-    code = os.system(cmd)
+    code = os.system(_to_local_str(cmd))
     if code != 0:
         final_code = code if os.name == 'nt' else (code >> 8)
         raise SystemExecError(cmd, final_code, "os.system('%s') failed(%d)" % (cmd, final_code))
@@ -59,7 +79,7 @@ def system(cmd):
 def system_output(cmd):
     """raise SystemExecError on failure"""
     try:
-        return subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+        return subprocess.check_output(_to_local_str(cmd), stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
         final_code = e.returncode if os.name == 'nt' else (e.returncode >> 8)
         raise SystemExecError(cmd, final_code, "subprocess.check_output('%s') failed(%d): %s" % (cmd, final_code, e))
@@ -72,7 +92,7 @@ class ChangeDirectory:
 
     def __enter__(self):
         _logger.info('>>> cd %s', self.target)
-        os.chdir(self.target)
+        os.chdir(_to_local_str(self.target))
         return self
 
     def __exit__(self, exc_type, exc_value, exc_tb):
@@ -83,11 +103,11 @@ class ChangeDirectory:
 class _OS_Win32:
     @classmethod
     def remove_path_if_exist(cls, path):
-        if not os.path.exists(path):
+        if not os.path.exists(_to_local_str(path)):
             return
-        if os.path.isdir(path):
+        if os.path.isdir(_to_local_str(path)):
             system('rd /s/q %s' % path)
-        elif os.path.isfile(path):
+        elif os.path.isfile(_to_local_str(path)):
             system('del /f/q %s' % path)
         else:
             raise PathError(path, "'%s' is not a valid file or directory path" % path)
@@ -135,7 +155,7 @@ def make_dir_if_not_exist(path):
     Create directory structure recursively
     any intermediate path segment (not just the rightmost) will be created if it does not exist.
     """
-    if os.path.exists(path):
+    if os.path.exists(_to_local_str(path)):
         return
     _os_cls.make_dir(path)
 
