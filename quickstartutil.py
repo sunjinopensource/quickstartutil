@@ -12,7 +12,7 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-__version__ = '0.1.3'
+__version__ = '0.1.4'
 
 
 if sys.version_info[0] == 3:
@@ -44,10 +44,11 @@ class Error(Exception):
 
 
 class SystemExecError(Error):
-    def __init__(self, cmd, code, msg):
+    def __init__(self, cmd, code, output, msg):
         Error.__init__(self, msg)
         self.cmd = cmd
         self.code = code
+        self.output = output
 
 
 class PathError(Error):
@@ -82,22 +83,32 @@ class SvnLockWithoutMessageError(SvnError):
         SvnError.__init__(self, path, "svn lock on '%s' without message is not allowed" % path)
 
 
-def system(cmd):
-    """raise SystemExecError on failure"""
+def system_exec(cmd):
+    """
+    Execute command and logger it's stdout & stderr
+    raise SystemExecError on failure
+    """
     _logger.info('>>> %s' % cmd)
-    code = os.system(_to_local_str(cmd))
-    if code != 0:
-        final_code = code if os.name == 'nt' else (code >> 8)
-        raise SystemExecError(cmd, final_code, "os.system('%s') failed(%d)" % (cmd, final_code))
+    try:
+        output = subprocess.check_output(_to_local_str(cmd), stderr=subprocess.STDOUT)
+        _logger.info(output)
+        return output
+    except subprocess.CalledProcessError as e:
+        _logger.error(e.output)
+        final_code = e.returncode if os.name == 'nt' else (e.returncode >> 8)
+        raise SystemExecError(cmd, final_code, e.output, "subprocess.check_output failed(%d): %s" % (final_code, e))
 
 
 def system_output(cmd):
-    """raise SystemExecError on failure"""
+    """
+    Execute command and return it's output
+    raise SystemExecError on failure
+    """
     try:
         return subprocess.check_output(_to_local_str(cmd), stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
         final_code = e.returncode if os.name == 'nt' else (e.returncode >> 8)
-        raise SystemExecError(cmd, final_code, "subprocess.check_output('%s') failed(%d): %s" % (cmd, final_code, e))
+        raise SystemExecError(cmd, final_code, e.output, "subprocess.check_output failed(%d): %s" % (final_code, e))
 
 
 class ChangeDirectory:
@@ -121,26 +132,26 @@ class _OS_Win32:
         if not os.path.exists(_to_local_str(path)):
             return
         if os.path.isdir(_to_local_str(path)):
-            system('rd /s/q %s' % path)
+            system_exec('rd /s/q %s' % path)
         elif os.path.isfile(_to_local_str(path)):
-            system('del /f/q %s' % path)
+            system_exec('del /f/q %s' % path)
         else:
             raise PathError(path, "'%s' is not a valid file or directory path" % path)
 
     @classmethod
     def copy_directory(cls, src_dir, dst_dir, excludes=None):
         if excludes is None:
-            system('xcopy %s\\* %s /r/i/c/k/h/e/q/y' % (src_dir, dst_dir))
+            system_exec('xcopy %s\\* %s /r/i/c/k/h/e/q/y' % (src_dir, dst_dir))
         else:
             excludes_file_path = tempfile.mktemp()
             with open(excludes_file_path, 'w') as fp:
                 fp.writelines(excludes)
-            system('xcopy %s\\* %s /r/i/c/k/h/e/q/y/exclude:%s' % (src_dir, dst_dir, excludes_file_path))
+            system_exec('xcopy %s\\* %s /r/i/c/k/h/e/q/y/exclude:%s' % (src_dir, dst_dir, excludes_file_path))
             os.remove(excludes_file_path)
 
     @classmethod
     def make_dir(cls, path):
-        system('mkdir %s' % path)
+        system_exec('mkdir %s' % path)
 
 
 if os.name == 'nt':
@@ -197,7 +208,7 @@ class svn:
 
     @classmethod
     def exec_sub_command(cls, sub_command):
-        system(cls._base_command() + ' ' + sub_command)
+        system_exec(cls._base_command() + ' ' + sub_command)
 
     @classmethod
     def exec_sub_command_output(cls, sub_command):
