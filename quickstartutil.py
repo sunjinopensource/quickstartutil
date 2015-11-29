@@ -12,7 +12,7 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 
 
 if sys.version_info[0] == 3:
@@ -64,7 +64,22 @@ class SvnError(Error):
 
 class SvnCommitWithoutMessageError(SvnError):
     def __init__(self, path):
-        SvnError.__init__(self, path, "svn commit '%s' without log message not allow" % path)
+        SvnError.__init__(self, path, "svn commit on '%s' without log message is not allowed" % path)
+
+
+class SvnAlreadyLockedError(SvnError):
+    def __init__(self, path, lock_owner, lock_comment, lock_date):
+        SvnError.__init__(self, path, "svn already locked on '%s' by user '%s' at %s%s" %
+                          (path, lock_owner, lock_date, '' if lock_comment == '' else ': ' + lock_comment )
+                          )
+        self.lock_owner = lock_owner
+        self.lock_comment = lock_comment
+        self.lock_date = lock_date
+
+
+class SvnLockWithoutMessageError(SvnError):
+    def __init__(self, path):
+        SvnError.__init__(self, path, "svn lock on '%s' without message is not allowed" % path)
 
 
 def system(cmd):
@@ -185,7 +200,7 @@ class svn:
         system(cls._base_command() + ' ' + sub_command)
 
     @classmethod
-    def get_sub_command_output(cls, sub_command):
+    def exec_sub_command_output(cls, sub_command):
         return system_output(cls._base_command() + ' ' + sub_command)
 
     @classmethod
@@ -207,7 +222,7 @@ class svn:
     @classmethod
     def info_dict(cls, path='.'):
         ret = {}
-        result = cls.get_sub_command_output('info --xml ' + path)
+        result = cls.exec_sub_command_output('info --xml ' + path)
         root = ElementTree.fromstring(result)
         entry_node = root.find('entry')
 
@@ -235,10 +250,20 @@ class svn:
         ret['commit'] = commit
         commit['#revision'] = int(commit_node.attrib['revision'])
 
-        commit_author = commit_node.find('author')  # author can be None if the repository has revision 0
-        if commit_author != None:
-            commit['author'] = commit_author.text
+        commit_author_node = commit_node.find('author')  # author can be None if the repository has revision 0
+        if commit_author_node != None:
+            commit['author'] = commit_author_node.text
         commit['date'] = commit_node.find('date').text
+
+        lock_node = entry_node.find('lock')
+        if lock_node is not None:
+            lock = {}
+            ret['lock'] = lock
+            lock['token'] = lock_node.find('token').text
+            lock['owner'] = lock_node.find('owner').text
+            lock_comment_node = lock_node.find('comment')
+            lock['comment'] = '' if lock_comment_node is None else lock_comment_node.text
+            lock['created'] = lock_node.find('created').text
 
         return ret
 
@@ -263,6 +288,10 @@ class svn:
 
     @classmethod
     def commit(cls, msg, path='.', include_external=False, user_pass=None):
+        """
+        :exception:
+            SvnCommitWithoutMessageError: if msg is empty
+        """
         if not msg:
             raise SvnCommitWithoutMessageError(path)
 
@@ -312,7 +341,7 @@ class svn:
 
     @classmethod
     def remove_not_versioned(cls, path='.'):
-        for line in cls.get_sub_command_output('status ' + path).splitlines():
+        for line in cls.exec_sub_command_output('status ' + path).splitlines():
             if len(line) > 0 and line[0] == '?':
                 remove_path_if_exist(line[8:])
 
@@ -328,3 +357,21 @@ class svn:
                 fp.write(pair[1] + ' ' + pair[0] + '\n')
         cls.exec_sub_command('propset svn:externals -F %s %s' % (temp_external_file_path, dir) )
         remove_path_if_exist(temp_external_file_path)
+
+    @classmethod
+    def lock(cls, msg, path='.', user_pass=None):
+        """
+        :exception:
+            SvnLockWithoutMessageError: if msg is empty
+            SvnAlreadyLockedError: if lock failure
+        """
+        if not msg:
+            raise SvnLockWithoutMessageError(path)
+        lock_result = cls.exec_sub_command_output('lock ' + path + ' ' + cls.str_user_pass_option(user_pass))
+        if lock_result[0:4] == "svn:":
+            lock_info = cls.info_dict(path)['lock']
+            raise SvnAlreadyLockedError(path, lock_info['owner'], lock_info['comment'], lock_info['created'])
+
+    @classmethod
+    def unlock(cls, path='.', user_pass=None):
+        cls.exec_sub_command('unlock ' + path + ' --force ' + cls.str_user_pass_option(user_pass))
