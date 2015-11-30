@@ -12,7 +12,19 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-__version__ = '0.1.7'
+__version__ = '0.1.8'
+
+
+__all__ = ['Error',
+           'SystemExecError',
+           'PathError', 'PathNotExistError', 'PathAlreadyExistError', 'PathTypeUnsupportedError',
+           'SvnError', 'SvnNoMessageError', 'SvnAlreadyLockedError', 'SvnBranchDestinationAlreadyExist',
+           'set_logger', 'set_local_encoding',
+           'system_exec', 'system_output',
+           'ChangeDirectory',
+           'is_path_exist', 'is_directory', 'is_file',
+           'OSX', 'osx',
+           'Svn', 'svn']
 
 
 if sys.version_info[0] == 3:
@@ -57,9 +69,37 @@ class SystemExecError(Error):
 
 
 class PathError(Error):
-    def __init__(self, path, msg):
-        Error.__init__(self, path, msg)
+    def __init__(self, path):
+        Error.__init__(self)
         self.path = path
+
+
+class PathNotExistError(PathError):
+    def __init__(self, path):
+        PathError.__init__(self, path)
+
+    def __str__(self):
+        return "path '%s' not exist" % self.path
+
+
+class PathAlreadyExistError(PathError):
+    def __init__(self, path):
+        PathError.__init__(self, path)
+
+    def __str__(self):
+        return "path '%s' already exist" % self.path
+
+
+class PathTypeUnsupportedError(PathError):
+    def __init__(self, path, msg=None):
+        PathError.__init__(self, path)
+        self.message = msg
+
+    def __str__(self):
+        if self.msg is None:
+            return "path '%s' is unsupported type" % self.path
+        else:
+            return self.msg
 
 
 class SvnError(Error):
@@ -155,64 +195,88 @@ class ChangeDirectory:
         os.chdir(self.old_cwd)
 
 
-class _OS_Win32:
-    @classmethod
-    def remove_path_if_exist(cls, path):
-        if not os.path.exists(_to_local_str(path)):
-            return
-        if os.path.isdir(_to_local_str(path)):
-            system_exec('rd /s/q %s' % path)
-        elif os.path.isfile(_to_local_str(path)):
-            system_exec('del /f/q %s' % path)
-        else:
-            raise PathError(path, "'%s' is not a valid file or directory path" % path)
+def is_path_exist(path):
+    return os.path.exists(_to_local_str(path))
 
-    @classmethod
-    def copy_directory(cls, src_dir, dst_dir, excludes=None):
+
+def is_directory(path):
+    return os.path.isdir(_to_local_str(path))
+
+
+def is_file(path):
+    return os.path.isfile(_to_local_str(path))
+
+
+class _BaseOSX:
+    def __init__(self, redirect_output_to_log=False):
+        self.redirect_output_to_log = redirect_output_to_log
+
+    def exec_command(self, cmd, shell=False):
+        system_exec(cmd, shell=shell, redirect_output_to_log=self.redirect_output_to_log)
+
+
+class _OSX_Win32(_BaseOSX):
+    def __init__(self, redirect_output_to_log=False):
+        _BaseOSX.__init__(self, redirect_output_to_log)
+
+    def remove_path(self, path, force=True):
+        """
+        :param force: if set to True then un-exist path will not raise exception
+        :except: PathNotExistError, PathTypeUnsupportedError
+        """
+        if not is_path_exist(path):
+            if force:
+                return
+            else:
+                raise PathNotExistError(path)
+
+        if is_directory(path):
+            self.exec_command('rd /s/q %s' % path, shell=True)
+        elif is_file(path):
+            self.exec_command('del /f/q %s' % path, shell=True)
+        else:
+            raise PathTypeUnsupportedError(path, "'%s' is not a valid file or directory path" % path)
+
+    def copy_directory(self, src_dir, dst_dir, excludes=None):
+        """
+        Copy all the files from source directory to destination directory.
+        If target directory does not exist, then create one.
+        :param src_dir: the source directory
+        :param dst_dir: the destination directory
+        :param excludes: if not None, files with the given pattern list in excludes will not be copied
+        """
         if excludes is None:
-            system_exec('xcopy %s\\* %s /r/i/c/k/h/e/q/y' % (src_dir, dst_dir))
+            self.exec_command('xcopy %s\\* %s /r/i/c/k/h/e/q/y' % (src_dir, dst_dir))
         else:
             excludes_file_path = tempfile.mktemp()
             with open(excludes_file_path, 'w') as fp:
                 fp.writelines(excludes)
-            system_exec('xcopy %s\\* %s /r/i/c/k/h/e/q/y/exclude:%s' % (src_dir, dst_dir, excludes_file_path))
+            self.exec_command('xcopy %s\\* %s /r/i/c/k/h/e/q/y/exclude:%s' % (src_dir, dst_dir, excludes_file_path))
             os.remove(excludes_file_path)
 
-    @classmethod
-    def make_dir(cls, path):
-        system_exec('mkdir %s' % path)
+    def make_dir(self, path, force=True):
+        """
+        Create directory structure recursively
+        any intermediate path segment (not just the rightmost) will be created if it does not exist.
+        :param force: if set to True then existed path will not raise exception
+        :except: PathAlreadyExistError
+        """
+        if is_path_exist(path):
+            if force:
+                return
+            else:
+                raise PathAlreadyExistError(path)
+        self.exec_command('mkdir %s' % path)
 
 
 if os.name == 'nt':
-    _os_cls = _OS_Win32
+    OSX = _OSX_Win32
 else:
     raise NotImplementedError('Unsupported os.')
 
 
-def remove_path_if_exist(path):
-    """Remove the file or directory if exist."""
-    _os_cls.remove_path_if_exist(path)
-
-
-def copy_directory(src_dir, dst_dir, excludes=None):
-    """
-    Copy all the files from source directory to destination directory.
-    If target directory does not exist, then create one.
-    :param src_dir: the source directory
-    :param dst_dir: the destination directory
-    :param excludes: if not None, files with the given pattern list in excludes will not be copied
-    """
-    _os_cls.copy_directory(src_dir, dst_dir, excludes)
-
-
-def make_dir_if_not_exist(path):
-    """
-    Create directory structure recursively
-    any intermediate path segment (not just the rightmost) will be created if it does not exist.
-    """
-    if os.path.exists(_to_local_str(path)):
-        return
-    _os_cls.make_dir(path)
+# default OSX object
+osx = OSX()
 
 
 class Svn:
@@ -269,6 +333,7 @@ class Svn:
         self.str_user_pass_option = self.stringing_user_pass_option(user_pass)
         self.base_command = 'svn --non-interactive --no-auth-cache'
         self.redirect_output_to_log = redirect_output_to_log
+        self.osx = OSX(redirect_output_to_log)
 
     def exec_sub_command(self, sub_command):
         system_exec(self.base_command + ' ' + sub_command, redirect_output_to_log=self.redirect_output_to_log)
@@ -396,7 +461,7 @@ class Svn:
     def remove_not_versioned(self, path='.'):
         for line in self.exec_sub_command_output('status ' + path).splitlines():
             if len(line) > 0 and line[0] == '?':
-                remove_path_if_exist(line[8:])
+                self.osx.remove_path(line[8:])
 
     def propset_externals(self, dir, external_pairs):
         """
@@ -408,7 +473,7 @@ class Svn:
             for pair in external_pairs:
                 fp.write(pair[1] + ' ' + pair[0] + '\n')
         self.exec_sub_command('propset svn:externals -F %s %s' % (temp_external_file_path, dir) )
-        remove_path_if_exist(temp_external_file_path)
+        os.remove(temp_external_file_path)
 
     def lock(self, file_path, msg):
         """
