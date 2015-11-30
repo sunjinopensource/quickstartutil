@@ -63,29 +63,29 @@ class PathError(Error):
 
 
 class SvnError(Error):
-    def __init__(self, path, msg):
-        Error.__init__(self, path, msg)
-        self.path = path
+    def __init__(self, msg):
+        Error.__init__(self, msg)
 
 
-class SvnCommitWithoutMessageError(SvnError):
-    def __init__(self, path):
-        SvnError.__init__(self, path, "svn commit on '%s' without log message is not allowed" % path)
+class SvnNoMessageError(SvnError):
+    def __init__(self, str_operation):
+        SvnError.__init__(self, "svn: %s must give a message" % (str_operation))
 
 
 class SvnAlreadyLockedError(SvnError):
     def __init__(self, path, lock_owner, lock_comment, lock_date):
-        SvnError.__init__(self, path, "svn already locked on '%s' by user '%s' at %s%s" %
-                          (path, lock_owner, lock_date, '' if lock_comment == '' else ': ' + lock_comment )
-                          )
+        SvnError.__init__(self, "svn: path '%s' already locked by user '%s' at %s%s" %
+                          (path, lock_owner, lock_date, '' if lock_comment == '' else ': ' + lock_comment ) )
+        self.path = path
         self.lock_owner = lock_owner
         self.lock_comment = lock_comment
         self.lock_date = lock_date
 
 
-class SvnLockWithoutMessageError(SvnError):
-    def __init__(self, path):
-        SvnError.__init__(self, path, "svn lock on '%s' without message is not allowed" % path)
+class SvnBranchDestinationAlreadyExist(SvnError):
+    def __init__(self, dst):
+        SvnError.__init__(self, "svn: branch destination '%s' already exist" % dst)
+        self.dst = dst
 
 
 def _system_exec_1(cmd, shell=False):
@@ -279,11 +279,12 @@ class svn:
         repository['uuid'] = repository_node.find('uuid').text
 
         wc_info_node = entry_node.find('wc-info')
-        wc_info = {}
-        ret['wc-info'] = wc_info
-        wc_info['wcroot-abspath'] = wc_info_node.find('wcroot-abspath').text
-        wc_info['uuid'] = wc_info_node.find('schedule').text
-        wc_info['depth'] = wc_info_node.find('depth').text
+        if wc_info_node is not None:  # svn info url has no wc-info node
+            wc_info = {}
+            ret['wc-info'] = wc_info
+            wc_info['wcroot-abspath'] = wc_info_node.find('wcroot-abspath').text
+            wc_info['uuid'] = wc_info_node.find('schedule').text
+            wc_info['depth'] = wc_info_node.find('depth').text
 
         commit_node = entry_node.find('commit')
         commit = {}
@@ -330,10 +331,10 @@ class svn:
     def commit(cls, msg, path='.', include_external=False, user_pass=None):
         """
         :except:
-            SvnCommitWithoutMessageError: if msg is empty
+            SvnNoMessageError: if msg is empty
         """
         if not msg:
-            raise SvnCommitWithoutMessageError(path)
+            raise SvnNoMessageError("commit on '%s'" % path)
 
         cmd = 'commit ' + path
         if include_external:
@@ -402,11 +403,11 @@ class svn:
     def lock(cls, msg, path='.', user_pass=None):
         """
         :except:
-            SvnLockWithoutMessageError: if msg is empty
+            SvnNoMessageError: if msg is empty
             SvnAlreadyLockedError: if lock failure
         """
         if not msg:
-            raise SvnLockWithoutMessageError(path)
+            raise SvnNoMessageError("lock on '%s'" % path)
         lock_result = cls.exec_sub_command_output('lock ' + path + ' ' + cls.str_user_pass_option(user_pass))
         if lock_result[0:4] == "svn:":
             lock_info = cls.info_dict(path)['lock']
@@ -415,3 +416,49 @@ class svn:
     @classmethod
     def unlock(cls, path='.', user_pass=None):
         cls.exec_sub_command('unlock ' + path + ' --force ' + cls.str_user_pass_option(user_pass))
+
+    @classmethod
+    def move(cls, msg, src, dst, user_pass=None):
+        """
+        :except:
+            SvnNoMessageError: if msg is empty
+        """
+        if not msg:
+            raise SvnNoMessageError("move '%s' -> '%s'" % (src, dst))
+
+        cmd = 'move ' + src + ' ' + dst
+        cmd += ' -m "%s"' % msg
+        cmd += ' --force'
+        cmd += ' --parents'
+        cmd += ' ' + cls.str_user_pass_option(user_pass)
+
+        cls.exec_sub_command(cmd)
+
+    @classmethod
+    def branch(cls, msg, src, dst, revision=None, user_pass=None):
+        """
+        :except:
+            SvnNoMessageError: if msg is empty
+        """
+        str_revision = cls.str_revision(revision)
+        if not msg:
+            raise SvnNoMessageError("branch '%s'@%s -> '%s'" % (src, str_revision, dst))
+
+        try:
+            svn.info_dict(dst)
+            raise SvnBranchDestinationAlreadyExist(dst)
+        except SystemExecError:
+            pass
+
+        cmd = 'copy ' + src + ' ' + dst
+        cmd += ' -r %s' % str_revision
+        cmd += ' -m "%s"' % msg
+        cmd += ' --parents'
+        cmd += ' ' + cls.str_user_pass_option(user_pass)
+
+        cls.exec_sub_command(cmd)
+
+
+#url = 'svn://127.0.0.1'
+#svn.branch('lalala', url+'/jinji2', url+'/jinji6', revision=4)
+#svn.move('auto move ', url+'/jinji2', url+'/jinjimove2')
