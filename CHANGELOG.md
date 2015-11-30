@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.5
+system_exec & system_output: add param shell
+
 ## 0.1.4
 system -> system_exec with log
 

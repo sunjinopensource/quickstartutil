@@ -12,7 +12,7 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-__version__ = '0.1.4'
+__version__ = '0.1.5'
 
 
 if sys.version_info[0] == 3:
@@ -83,14 +83,14 @@ class SvnLockWithoutMessageError(SvnError):
         SvnError.__init__(self, path, "svn lock on '%s' without message is not allowed" % path)
 
 
-def system_exec(cmd):
+def system_exec(cmd, shell=False):
     """
     Execute command and logger it's stdout & stderr
     raise SystemExecError on failure
     """
     _logger.info('>>> %s' % cmd)
     try:
-        output = subprocess.check_output(_to_local_str(cmd), stderr=subprocess.STDOUT)
+        output = subprocess.check_output(_to_local_str(cmd), stderr=subprocess.STDOUT, shell=shell)
         _logger.info(output)
         return output
     except subprocess.CalledProcessError as e:
@@ -99,13 +99,13 @@ def system_exec(cmd):
         raise SystemExecError(cmd, final_code, e.output, "subprocess.check_output failed(%d): %s" % (final_code, e))
 
 
-def system_output(cmd):
+def system_output(cmd, shell=False):
     """
     Execute command and return it's output
     raise SystemExecError on failure
     """
     try:
-        return subprocess.check_output(_to_local_str(cmd), stderr=subprocess.STDOUT)
+        return subprocess.check_output(_to_local_str(cmd), stderr=subprocess.STDOUT, shell=shell)
     except subprocess.CalledProcessError as e:
         final_code = e.returncode if os.name == 'nt' else (e.returncode >> 8)
         raise SystemExecError(cmd, final_code, e.output, "subprocess.check_output failed(%d): %s" % (final_code, e))
