@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.7
++ default svn object
+
 ## 0.1.6
 system_exec: add param redirect_output_to_log
 

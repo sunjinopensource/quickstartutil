@@ -12,7 +12,7 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-__version__ = '0.1.6'
+__version__ = '0.1.7'
 
 
 if sys.version_info[0] == 3:
@@ -222,6 +222,7 @@ class Svn:
     Global param:
         user_pass: None or a tuple with username & password
         revision: can be integer or string
+        path_list: can be a single string or a list/tuple of path
     """
 
     RESOLVE_ACCEPT_BASE = 'base'
@@ -249,7 +250,7 @@ class Svn:
 
     @classmethod
     def stringing_message_option(cls, message):
-        return ' -m "%s"' % message
+        return '-m "%s"' % message
 
     @classmethod
     def stringing_path_list(cls, path_list):
@@ -258,13 +259,19 @@ class Svn:
         else:
             return path_list
 
+    @classmethod
+    def is_url(cls, url):
+        for prefix in ('file:\\\\\\' 'svn://', 'http://', 'https://'):
+            if url.startswith(prefix):
+                return True
+
     def __init__(self, user_pass=None, redirect_output_to_log=False):
         self.str_user_pass_option = self.stringing_user_pass_option(user_pass)
         self.base_command = 'svn --non-interactive --no-auth-cache'
         self.redirect_output_to_log = redirect_output_to_log
 
     def exec_sub_command(self, sub_command):
-        system_exec(self.base_command + ' ' + sub_command, self.redirect_output_to_log)
+        system_exec(self.base_command + ' ' + sub_command, redirect_output_to_log=self.redirect_output_to_log)
 
     def exec_sub_command_output(self, sub_command):
         return system_output(self.base_command + ' ' + sub_command)
@@ -323,8 +330,8 @@ class Svn:
         cmd += ' ' + self.str_user_pass_option
         self.exec_sub_command(cmd)
 
-    def update(self, path='.', revision=None):
-        cmd = 'update ' + path
+    def update(self, path_list='.', revision=None):
+        cmd = 'update ' + self.stringing_path_list(path_list)
         cmd += ' ' + self.stringing_revision_option(revision)
         cmd += ' ' + self.str_user_pass_option
         self.exec_sub_command(cmd)
@@ -339,15 +346,15 @@ class Svn:
         cmd = 'add ' + self.stringing_path_list(path_list)
         self.exec_sub_command(cmd)
 
-    def commit(self, msg, path='.', include_external=False):
+    def commit(self, msg, path_list='.', include_external=False):
         """
         :except:
             SvnNoMessageError: if msg is empty
         """
         if not msg:
-            raise SvnNoMessageError("commit on '%s'" % path)
+            raise SvnNoMessageError("commit on '%s'" % path_list)
 
-        cmd = 'commit ' + path
+        cmd = 'commit ' + self.stringing_path_list(path_list)
         if include_external:
             cmd += ' --include-externals'
         cmd += ' ' + self.stringing_message_option(msg)
@@ -371,12 +378,12 @@ class Svn:
         conn = sqlite3.connect(os.path.join(path, '.svn', 'wc.db'))
         conn.execute('DELETE FROM work_queue')
 
-    def cleanup(self, path='.'):
-        cmd = 'cleanup ' + path
+    def cleanup(self, path_list='.'):
+        cmd = 'cleanup ' + self.stringing_path_list(path_list)
         self.exec_sub_command(cmd)
 
-    def revert(self, path='.', recursive=True):
-        cmd = 'revert ' + path
+    def revert(self, path_list='.', recursive=True):
+        cmd = 'revert ' + self.stringing_path_list(path_list)
         if recursive is not None:
             cmd += ' -R'
         self.exec_sub_command(cmd)
@@ -403,30 +410,33 @@ class Svn:
         self.exec_sub_command('propset svn:externals -F %s %s' % (temp_external_file_path, dir) )
         remove_path_if_exist(temp_external_file_path)
 
-    def lock(self, msg, path='.'):
+    def lock(self, file_path, msg):
         """
         :except:
             SvnNoMessageError: if msg is empty
             SvnAlreadyLockedError: if lock failure
         """
         if not msg:
-            raise SvnNoMessageError("lock on '%s'" % path)
+            raise SvnNoMessageError("lock on '%s'" % file_path)
 
-        cmd = 'lock ' + path
+        cmd = 'lock ' + file_path
         cmd += ' ' + self.stringing_message_option(msg)
         cmd += ' ' + self.str_user_pass_option
         lock_result = self.exec_sub_command_output(cmd)
-        if lock_result[0:4] == "svn:":
-            lock_info = self.info_dict(path)['lock']
-            raise SvnAlreadyLockedError(path, lock_info['owner'], lock_info['comment'], lock_info['created'])
+        if lock_result[0:4] == 'svn:':
+            if self.is_url(file_path):
+                raise SvnAlreadyLockedError(file_path, 'None', 'None', 'None')
+            else:
+                lock_info = self.info_dict(file_path)['lock']
+                raise SvnAlreadyLockedError(file_path, lock_info['owner'], lock_info['comment'], lock_info['created'])
 
-    def unlock(self, path='.'):
-        cmd = 'unlock ' + path
+    def unlock(self, file_path):
+        cmd = 'unlock ' + file_path
         cmd += ' --force'
         cmd += ' ' + self.str_user_pass_option
         self.exec_sub_command(cmd)
 
-    def move(self, msg, src, dst):
+    def move(self, src, dst, msg):
         """
         :except:
             SvnNoMessageError: if msg is empty
@@ -441,7 +451,7 @@ class Svn:
         cmd += ' ' + self.str_user_pass_option
         self.exec_sub_command(cmd)
 
-    def branch(self, msg, src, dst, revision=None):
+    def branch(self, src, dst, msg, revision=None):
         """
         :except:
             SvnNoMessageError: if msg is empty
@@ -461,3 +471,7 @@ class Svn:
         cmd += ' --parents'
         cmd += ' ' + self.str_user_pass_option
         self.exec_sub_command(cmd)
+
+
+# default Svn object
+svn = Svn()
