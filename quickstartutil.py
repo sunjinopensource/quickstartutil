@@ -248,18 +248,23 @@ class Svn:
         return '-r %s' % revision
 
     @classmethod
+    def stringing_message_option(cls, message):
+        return ' -m "%s"' % message
+
+    @classmethod
     def stringing_path_list(cls, path_list):
         if isinstance(path_list, tuple) or isinstance(path_list, list):
             return ' '.join(path_list)
         else:
             return path_list
 
-    def __init__(self, user_pass=None):
+    def __init__(self, user_pass=None, redirect_output_to_log=False):
         self.str_user_pass_option = self.stringing_user_pass_option(user_pass)
         self.base_command = 'svn --non-interactive --no-auth-cache'
+        self.redirect_output_to_log = redirect_output_to_log
 
     def exec_sub_command(self, sub_command):
-        system_exec(self.base_command + ' ' + sub_command)
+        system_exec(self.base_command + ' ' + sub_command, self.redirect_output_to_log)
 
     def exec_sub_command_output(self, sub_command):
         return system_output(self.base_command + ' ' + sub_command)
@@ -313,10 +318,16 @@ class Svn:
         return ret
 
     def checkout(self, url, path='.', revision=None):
-        self.exec_sub_command('checkout %s %s %s %s' % (url, path, self.stringing_revision_option(revision), self.str_user_pass_option) )
+        cmd = 'checkout ' + url + ' ' + path
+        cmd += ' ' + self.stringing_revision_option(revision)
+        cmd += ' ' + self.str_user_pass_option
+        self.exec_sub_command(cmd)
 
     def update(self, path='.', revision=None):
-        self.exec_sub_command('update %s %s %s' % (path, self.stringing_revision_option(revision), self.str_user_pass_option) )
+        cmd = 'update ' + path
+        cmd += ' ' + self.stringing_revision_option(revision)
+        cmd += ' ' + self.str_user_pass_option
+        self.exec_sub_command(cmd)
 
     def update_or_checkout(self, url, path='.', revision=None):
         if os.path.exists(path):
@@ -325,7 +336,8 @@ class Svn:
             self.checkout(url, path, revision)
 
     def add(self, path_list):
-        self.exec_sub_command('add ' + self.stringing_path_list(path_list))
+        cmd = 'add ' + self.stringing_path_list(path_list)
+        self.exec_sub_command(cmd)
 
     def commit(self, msg, path='.', include_external=False):
         """
@@ -338,7 +350,7 @@ class Svn:
         cmd = 'commit ' + path
         if include_external:
             cmd += ' --include-externals'
-        cmd += ' -m "%s"' % msg
+        cmd += ' ' + self.stringing_message_option(msg)
         cmd += ' ' + self.str_user_pass_option
         self.exec_sub_command(cmd)
 
@@ -360,13 +372,13 @@ class Svn:
         conn.execute('DELETE FROM work_queue')
 
     def cleanup(self, path='.'):
-        self.exec_sub_command('cleanup ' + path)
+        cmd = 'cleanup ' + path
+        self.exec_sub_command(cmd)
 
     def revert(self, path='.', recursive=True):
-        cmd = 'revert '
+        cmd = 'revert ' + path
         if recursive is not None:
-            cmd += '-R '
-        cmd += path
+            cmd += ' -R'
         self.exec_sub_command(cmd)
 
     def clear_all(self, path='.'):
@@ -399,13 +411,20 @@ class Svn:
         """
         if not msg:
             raise SvnNoMessageError("lock on '%s'" % path)
-        lock_result = self.exec_sub_command_output('lock ' + path + ' ' + self.str_user_pass_option)
+
+        cmd = 'lock ' + path
+        cmd += ' ' + self.stringing_message_option(msg)
+        cmd += ' ' + self.str_user_pass_option
+        lock_result = self.exec_sub_command_output(cmd)
         if lock_result[0:4] == "svn:":
             lock_info = self.info_dict(path)['lock']
             raise SvnAlreadyLockedError(path, lock_info['owner'], lock_info['comment'], lock_info['created'])
 
     def unlock(self, path='.'):
-        self.exec_sub_command('unlock ' + path + ' --force ' + self.str_user_pass_option)
+        cmd = 'unlock ' + path
+        cmd += ' --force'
+        cmd += ' ' + self.str_user_pass_option
+        self.exec_sub_command(cmd)
 
     def move(self, msg, src, dst):
         """
@@ -416,11 +435,10 @@ class Svn:
             raise SvnNoMessageError("move '%s' -> '%s'" % (src, dst))
 
         cmd = 'move ' + src + ' ' + dst
-        cmd += ' -m "%s"' % msg
+        cmd += ' ' + self.stringing_message_option(msg)
         cmd += ' --force'
         cmd += ' --parents'
         cmd += ' ' + self.str_user_pass_option
-
         self.exec_sub_command(cmd)
 
     def branch(self, msg, src, dst, revision=None):
@@ -428,9 +446,8 @@ class Svn:
         :except:
             SvnNoMessageError: if msg is empty
         """
-        str_revision_option = self.stringing_revision_option(revision)
         if not msg:
-            raise SvnNoMessageError("branch '%s'@%s -> '%s'" % (src, str_revision_option, dst))
+            raise SvnNoMessageError("branch '%s' -> '%s'" % (src, dst))
 
         try:
             self.info_dict(dst)
@@ -439,14 +456,8 @@ class Svn:
             pass
 
         cmd = 'copy ' + src + ' ' + dst
-        cmd += ' -r %s' % str_revision_option
-        cmd += ' -m "%s"' % msg
+        cmd += ' ' + self.stringing_revision_option(revision)
+        cmd += ' ' + self.stringing_message_option(msg)
         cmd += ' --parents'
         cmd += ' ' + self.str_user_pass_option
-
         self.exec_sub_command(cmd)
-
-
-#url = 'svn://127.0.0.1'
-#svn.branch('lalala', url+'/jinji2', url+'/jinji6', revision=4)
-#svn.move('auto move ', url+'/jinji2', url+'/jinjimove2')
