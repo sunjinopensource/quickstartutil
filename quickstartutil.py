@@ -215,7 +215,7 @@ def make_dir_if_not_exist(path):
     _os_cls.make_dir(path)
 
 
-class svn:
+class Svn:
     """
     A svn command wrapper.
 
@@ -232,19 +232,7 @@ class svn:
     RESOLVE_ACCEPT_THEIRS_FULL = 'theirs-full'
 
     @classmethod
-    def _base_command(cls):
-        return 'svn --non-interactive --no-auth-cache'
-
-    @classmethod
-    def exec_sub_command(cls, sub_command):
-        system_exec(cls._base_command() + ' ' + sub_command)
-
-    @classmethod
-    def exec_sub_command_output(cls, sub_command):
-        return system_output(cls._base_command() + ' ' + sub_command)
-
-    @classmethod
-    def str_user_pass_option(cls, user_pass):
+    def stringing_user_pass_option(cls, user_pass):
         s = ''
         if user_pass is not None:
             s += '--username ' + user_pass[0]
@@ -252,17 +240,33 @@ class svn:
         return s
 
     @classmethod
-    def str_revision(cls, revision):
+    def stringing_revision_option(cls, revision):
         if revision is None:
-            return 'HEAD'
+            return '-r HEAD'
         if isinstance(revision, int):
-            return '%d' % revision
-        return revision
+            return '-r %d' % revision
+        return '-r %s' % revision
 
     @classmethod
-    def info_dict(cls, path='.'):
+    def stringing_path_list(cls, path_list):
+        if isinstance(path_list, tuple) or isinstance(path_list, list):
+            return ' '.join(path_list)
+        else:
+            return path_list
+
+    def __init__(self, user_pass=None):
+        self.str_user_pass_option = self.stringing_user_pass_option(user_pass)
+        self.base_command = 'svn --non-interactive --no-auth-cache'
+
+    def exec_sub_command(self, sub_command):
+        system_exec(self.base_command + ' ' + sub_command)
+
+    def exec_sub_command_output(self, sub_command):
+        return system_output(self.base_command + ' ' + sub_command)
+
+    def info_dict(self, path='.'):
         ret = {}
-        result = cls.exec_sub_command_output('info --xml ' + path)
+        result = self.exec_sub_command_output('info --xml ' + path)
         root = ElementTree.fromstring(result)
         entry_node = root.find('entry')
 
@@ -308,27 +312,22 @@ class svn:
 
         return ret
 
-    @classmethod
-    def checkout(cls, url, path='.', revision=None, user_pass=None):
-        cls.exec_sub_command('checkout -r %s %s %s %s' % (cls.str_revision(revision), url, path, cls.str_user_pass_option(user_pass)) )
+    def checkout(self, url, path='.', revision=None):
+        self.exec_sub_command('checkout %s %s %s %s' % (url, path, self.stringing_revision_option(revision), self.str_user_pass_option) )
 
-    @classmethod
-    def update(cls, path='.', revision=None):
-        cls.exec_sub_command('update -r %s %s' % (cls.str_revision(revision), path) )
+    def update(self, path='.', revision=None):
+        self.exec_sub_command('update %s %s %s' % (path, self.stringing_revision_option(revision), self.str_user_pass_option) )
 
-    @classmethod
-    def update_or_checkout(cls, url, path='.', revision=None, user_pass=None):
+    def update_or_checkout(self, url, path='.', revision=None):
         if os.path.exists(path):
-            cls.update(path, revision)
+            self.update(path, revision)
         else:
-            cls.checkout(url, path, revision, user_pass)
+            self.checkout(url, path, revision)
 
-    @classmethod
-    def add(cls, path_list):
-        cls.exec_sub_command('add ' + ' '.join(path_list))
+    def add(self, path_list):
+        self.exec_sub_command('add ' + self.stringing_path_list(path_list))
 
-    @classmethod
-    def commit(cls, msg, path='.', include_external=False, user_pass=None):
+    def commit(self, msg, path='.', include_external=False):
         """
         :except:
             SvnNoMessageError: if msg is empty
@@ -340,54 +339,47 @@ class svn:
         if include_external:
             cmd += ' --include-externals'
         cmd += ' -m "%s"' % msg
-        cmd += ' ' + cls.str_user_pass_option(user_pass)
-        cls.exec_sub_command(cmd)
+        cmd += ' ' + self.str_user_pass_option
+        self.exec_sub_command(cmd)
 
-    @classmethod
-    def resolve(cls, path_list, accept_arg, recursive=True, quiet=True):
+    def resolve(self, path_list, accept_arg, recursive=True, quiet=True):
         """
         :param accept_arg: svn.RESOLVE_ACCEPT_XXX
         """
-        cmd = 'resolve ' + ' '.join(path_list)
+        cmd = 'resolve ' + self.stringing_path_list(path_list)
         if recursive:
             cmd += ' -R'
         if quiet:
             cmd += ' -q'
         cmd += ' --accept ' + accept_arg
-        cls.exec_sub_command(cmd)
+        self.exec_sub_command(cmd)
 
-    @classmethod
-    def clear_work_queue(cls, path='.'):
+    def clear_work_queue(self, path='.'):
         """Do this action maybe useful if cleanup failed"""
         conn = sqlite3.connect(os.path.join(path, '.svn', 'wc.db'))
         conn.execute('DELETE FROM work_queue')
 
-    @classmethod
-    def cleanup(cls, path='.'):
-        cls.exec_sub_command('cleanup ' + path)
+    def cleanup(self, path='.'):
+        self.exec_sub_command('cleanup ' + path)
 
-    @classmethod
-    def revert(cls, path='.', recursive=True):
+    def revert(self, path='.', recursive=True):
         cmd = 'revert '
         if recursive is not None:
             cmd += '-R '
         cmd += path
-        cls.exec_sub_command(cmd)
+        self.exec_sub_command(cmd)
 
-    @classmethod
-    def clear_all(cls, path='.'):
-        cls.clear_work_queue(path)
-        cls.cleanup(path)
-        cls.revert(path)
+    def clear_all(self, path='.'):
+        self.clear_work_queue(path)
+        self.cleanup(path)
+        self.revert(path)
 
-    @classmethod
-    def remove_not_versioned(cls, path='.'):
-        for line in cls.exec_sub_command_output('status ' + path).splitlines():
+    def remove_not_versioned(self, path='.'):
+        for line in self.exec_sub_command_output('status ' + path).splitlines():
             if len(line) > 0 and line[0] == '?':
                 remove_path_if_exist(line[8:])
 
-    @classmethod
-    def propset_externals(cls, dir, external_pairs):
+    def propset_externals(self, dir, external_pairs):
         """
         :param dir: the externals to set on
         :param external_pairs: [(sub_dir, external_dir),...]
@@ -396,11 +388,10 @@ class svn:
         with open(temp_external_file_path, 'w') as fp:
             for pair in external_pairs:
                 fp.write(pair[1] + ' ' + pair[0] + '\n')
-        cls.exec_sub_command('propset svn:externals -F %s %s' % (temp_external_file_path, dir) )
+        self.exec_sub_command('propset svn:externals -F %s %s' % (temp_external_file_path, dir) )
         remove_path_if_exist(temp_external_file_path)
 
-    @classmethod
-    def lock(cls, msg, path='.', user_pass=None):
+    def lock(self, msg, path='.'):
         """
         :except:
             SvnNoMessageError: if msg is empty
@@ -408,17 +399,15 @@ class svn:
         """
         if not msg:
             raise SvnNoMessageError("lock on '%s'" % path)
-        lock_result = cls.exec_sub_command_output('lock ' + path + ' ' + cls.str_user_pass_option(user_pass))
+        lock_result = self.exec_sub_command_output('lock ' + path + ' ' + self.str_user_pass_option)
         if lock_result[0:4] == "svn:":
-            lock_info = cls.info_dict(path)['lock']
+            lock_info = self.info_dict(path)['lock']
             raise SvnAlreadyLockedError(path, lock_info['owner'], lock_info['comment'], lock_info['created'])
 
-    @classmethod
-    def unlock(cls, path='.', user_pass=None):
-        cls.exec_sub_command('unlock ' + path + ' --force ' + cls.str_user_pass_option(user_pass))
+    def unlock(self, path='.'):
+        self.exec_sub_command('unlock ' + path + ' --force ' + self.str_user_pass_option)
 
-    @classmethod
-    def move(cls, msg, src, dst, user_pass=None):
+    def move(self, msg, src, dst):
         """
         :except:
             SvnNoMessageError: if msg is empty
@@ -430,33 +419,32 @@ class svn:
         cmd += ' -m "%s"' % msg
         cmd += ' --force'
         cmd += ' --parents'
-        cmd += ' ' + cls.str_user_pass_option(user_pass)
+        cmd += ' ' + self.str_user_pass_option
 
-        cls.exec_sub_command(cmd)
+        self.exec_sub_command(cmd)
 
-    @classmethod
-    def branch(cls, msg, src, dst, revision=None, user_pass=None):
+    def branch(self, msg, src, dst, revision=None):
         """
         :except:
             SvnNoMessageError: if msg is empty
         """
-        str_revision = cls.str_revision(revision)
+        str_revision_option = self.stringing_revision_option(revision)
         if not msg:
-            raise SvnNoMessageError("branch '%s'@%s -> '%s'" % (src, str_revision, dst))
+            raise SvnNoMessageError("branch '%s'@%s -> '%s'" % (src, str_revision_option, dst))
 
         try:
-            svn.info_dict(dst)
+            self.info_dict(dst)
             raise SvnBranchDestinationAlreadyExist(dst)
         except SystemExecError:
             pass
 
         cmd = 'copy ' + src + ' ' + dst
-        cmd += ' -r %s' % str_revision
+        cmd += ' -r %s' % str_revision_option
         cmd += ' -m "%s"' % msg
         cmd += ' --parents'
-        cmd += ' ' + cls.str_user_pass_option(user_pass)
+        cmd += ' ' + self.str_user_pass_option
 
-        cls.exec_sub_command(cmd)
+        self.exec_sub_command(cmd)
 
 
 #url = 'svn://127.0.0.1'
