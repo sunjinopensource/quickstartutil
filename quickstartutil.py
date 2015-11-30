@@ -12,7 +12,7 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-__version__ = '0.1.5'
+__version__ = '0.1.6'
 
 
 if sys.version_info[0] == 3:
@@ -32,11 +32,16 @@ def set_local_encoding(local_encoding):
     global _local_encoding
     _local_encoding = local_encoding
 
+
 def _to_local_str(cmd):
     if _PY3:
         return cmd
     else:
         return cmd.decode('utf8').encode(_local_encoding)
+
+
+def _fix_cmd_retcode(retcode):
+    return retcode if os.name == 'nt' else (retcode >> 8)
 
 
 class Error(Exception):
@@ -83,20 +88,44 @@ class SvnLockWithoutMessageError(SvnError):
         SvnError.__init__(self, path, "svn lock on '%s' without message is not allowed" % path)
 
 
-def system_exec(cmd, shell=False):
+def _system_exec_1(cmd, shell=False):
     """
-    Execute command and logger it's stdout & stderr
-    raise SystemExecError on failure
+    Execute command and wait complete.
+    The normal output & error will output to console.
+    It's recommended for long time operation.
+    :except: raise SystemCallError on failure
     """
+    _logger.info('>>> %s' % cmd)
+    try:
+        subprocess.check_call(_to_local_str(cmd), stderr=subprocess.STDOUT, shell=shell)
+    except subprocess.CalledProcessError as e:
+        final_code = _fix_cmd_retcode(e.returncode)
+        raise SystemExecError(cmd, final_code, None, "subprocess.check_call failed(%d): %s" % (final_code, e))
+
+
+def _system_exec_2(cmd, shell=False):
     _logger.info('>>> %s' % cmd)
     try:
         output = subprocess.check_output(_to_local_str(cmd), stderr=subprocess.STDOUT, shell=shell)
         _logger.info(output)
-        return output
     except subprocess.CalledProcessError as e:
         _logger.error(e.output)
-        final_code = e.returncode if os.name == 'nt' else (e.returncode >> 8)
+        final_code = _fix_cmd_retcode(e.returncode)
         raise SystemExecError(cmd, final_code, e.output, "subprocess.check_output failed(%d): %s" % (final_code, e))
+
+
+def system_exec(cmd, shell=False, redirect_output_to_log=False):
+    """
+    Execute command and wait complete.
+    :param: redirect_output_to_log:
+      True: OUTPUT & ERROR will redirect to the logger
+      False: OUTPUT & ERROR will output to console. It's recommended for long-time operation
+    :except: raise SystemExecError on failure
+    """
+    if redirect_output_to_log:
+        _system_exec_2(cmd, shell)
+    else:
+        _system_exec_1(cmd, shell)
 
 
 def system_output(cmd, shell=False):
@@ -300,7 +329,7 @@ class svn:
     @classmethod
     def commit(cls, msg, path='.', include_external=False, user_pass=None):
         """
-        :exception:
+        :except:
             SvnCommitWithoutMessageError: if msg is empty
         """
         if not msg:
@@ -372,7 +401,7 @@ class svn:
     @classmethod
     def lock(cls, msg, path='.', user_pass=None):
         """
-        :exception:
+        :except:
             SvnLockWithoutMessageError: if msg is empty
             SvnAlreadyLockedError: if lock failure
         """

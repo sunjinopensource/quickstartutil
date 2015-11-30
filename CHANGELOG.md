@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.6
+system_exec: add param redirect_output_to_log
+
 ## 0.1.5
 system_exec & system_output: add param shell
 
