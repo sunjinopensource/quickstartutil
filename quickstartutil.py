@@ -17,7 +17,7 @@ __version__ = '0.1.9'
 
 __all__ = ['Error',
            'OsxSystemExecError', 'OsxPathError', 'OsxPathNotExistError', 'OsxPathAlreadyExistError', 'OsxPathTypeUnsupportedError',
-           'SvnError', 'SvnNoMessageError', 'SvnAlreadyLockedError', 'SvnBranchDestinationAlreadyExist',
+           'SvnError', 'SvnNoMessageError', 'SvnAlreadyLockedError', 'SvnBranchDestinationAlreadyExistError',
            'set_logger', 'set_local_encoding',
            'Osx', 'osx',
            'Svn', 'svn']
@@ -109,7 +109,7 @@ class SvnAlreadyLockedError(SvnError):
         self.lock_date = lock_date
 
 
-class SvnBranchDestinationAlreadyExist(SvnError):
+class SvnBranchDestinationAlreadyExistError(SvnError):
     def __init__(self, dst):
         SvnError.__init__(self, "svn: branch destination '%s' already exist" % dst)
         self.dst = dst
@@ -552,7 +552,7 @@ class Svn:
 
         try:
             self.info_dict(dst)
-            raise SvnBranchDestinationAlreadyExist(dst)
+            raise SvnBranchDestinationAlreadyExistError(dst)
         except OsxSystemExecError:
             pass
 
