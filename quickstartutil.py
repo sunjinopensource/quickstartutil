@@ -35,13 +35,14 @@ class Error(Exception):
     pass
 
 
-class UnsupportedLocalEncoding(Error):
-    def __init__(self, msg):
-        Error.__init__(self, msg)
+class UnsupportedEncodingError(Error):
+    def __init__(self, msg, encodings):
+        Error.__init__(self)
         self.msg = msg
+        self.encodings = encodings
 
     def __str__(self):
-        return "Message '%s' can't decode by local encoding [%s]" % (self.msg, ', '.join(_local_encoding))
+        return "Message '%s' can't decode by %s" % (self.msg, str(self.encodings))
 
 
 class OsxError(Error):
@@ -121,34 +122,30 @@ def set_logger(logger):
     _logger = logger
 
 
-_default_local_encodings = [locale.getdefaultlocale()[1], 'utf8', 'gbk']
-_local_encoding = _default_local_encodings[:]
+_default_local_encoding = locale.getdefaultlocale()[1]
+_local_encoding = _default_local_encoding
 def set_local_encoding(encoding):
     global _local_encoding
-    _local_encoding.remove(encoding)
-    _local_encoding.insert(0, encoding)
+    _local_encoding = encoding
+
+
+_to_unicode_str_encodings = ('utf8', _local_encoding, 'gbk')
+def _to_unicode_str(s):
+    if isinstance(s, _unicode):
+        return s
+    for encoding in _to_unicode_str_encodings:
+        try:
+            return s.decode(encoding)
+        except:
+            pass
+        raise UnsupportedEncodingError(s)
 
 
 def _to_local_str(s):
     if _PY3:
         return s
     else:
-        return s.decode('utf8').encode(_local_encoding[0])
-
-
-def _to_unicode_str(s):
-    if isinstance(s, _unicode):
-        return s
-    for encoding in _local_encoding:
-        try:
-            return s.decode(encoding)
-        except:
-            pass
-        raise UnsupportedLocalEncoding(s)
-
-
-def _fix_cmd_retcode(retcode):
-    return retcode if os.name == 'nt' else (retcode >> 8)
+        _to_unicode_str(s).encode(_local_encoding)
 
 
 class _BaseOsx:
@@ -167,6 +164,10 @@ class _BaseOsx:
             os.chdir(self.old_cwd)
 
     @classmethod
+    def _fix_cmd_retcode(cls, retcode):
+        return retcode if os.name == 'nt' else (retcode >> 8)
+
+    @classmethod
     def _system_exec_1(cls, cmd, shell=False):
         """
         Execute command and wait complete.
@@ -178,7 +179,7 @@ class _BaseOsx:
         try:
             subprocess.check_call(_to_local_str(cmd), stderr=subprocess.STDOUT, shell=shell)
         except subprocess.CalledProcessError as e:
-            final_code = _fix_cmd_retcode(e.returncode)
+            final_code = cls._fix_cmd_retcode(e.returncode)
             raise OsxSystemExecError(cmd, final_code, None, "subprocess.check_call failed(%d): %s" % (final_code, e))
 
     @classmethod
@@ -189,7 +190,7 @@ class _BaseOsx:
             _logger.info(_to_unicode_str(output))
         except subprocess.CalledProcessError as e:
             _logger.error(_to_unicode_str(e.output))
-            final_code = _fix_cmd_retcode(e.returncode)
+            final_code = cls._fix_cmd_retcode(e.returncode)
             raise OsxSystemExecError(cmd, final_code, e.output, "subprocess.check_output failed(%d): %s" % (final_code, e))
 
     @classmethod
