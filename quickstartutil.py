@@ -224,7 +224,7 @@ class _BaseOsx:
         return os.path.exists(_to_local_str(path))
 
     @classmethod
-    def is_directory(cls, path):
+    def is_dir(cls, path):
         return os.path.isdir(_to_local_str(path))
 
     @classmethod
@@ -255,14 +255,14 @@ class _Osx_Win32(_BaseOsx):
             else:
                 raise OsxPathNotExistError(path)
 
-        if self.is_directory(path):
-            self.exec_command('rd /s/q %s' % path, shell=True)
+        if self.is_dir(path):
+            self.exec_command('rd /s/q %s' % os.path.normpath(path), shell=True)
         elif self.is_file(path):
-            self.exec_command('del /f/q %s' % path, shell=True)
+            self.exec_command('del /f/q %s' % os.path.normpath(path), shell=True)
         else:
             raise OsxPathTypeUnsupportedError(path, "'%s' is not a valid file or directory path" % path)
 
-    def copy_directory(self, src_dir, dst_dir, excludes=None):
+    def copy_dir(self, src_dir, dst_dir, excludes=None):
         """
         Copy all the files from source directory to destination directory.
         If target directory does not exist, then create one.
@@ -271,12 +271,12 @@ class _Osx_Win32(_BaseOsx):
         :param excludes: if not None, files with the given pattern list in excludes will not be copied
         """
         if excludes is None:
-            self.exec_command('xcopy %s\\* %s /r/i/c/k/h/e/q/y' % (src_dir, dst_dir))
+            self.exec_command('xcopy %s\\* %s /r/i/c/k/h/e/q/y' % (os.path.normpath(src_dir), os.path.normpath(dst_dir)))
         else:
             excludes_file_path = tempfile.mktemp()
             with open(excludes_file_path, 'w') as fp:
                 fp.writelines(excludes)
-            self.exec_command('xcopy %s\\* %s /r/i/c/k/h/e/q/y/exclude:%s' % (src_dir, dst_dir, excludes_file_path))
+            self.exec_command('xcopy %s\\* %s /r/i/c/k/h/e/q/y/exclude:%s' % (os.path.normpath(src_dir), os.path.normpath(dst_dir), excludes_file_path))
             os.remove(excludes_file_path)
 
     def make_dir(self, path, force=True):
@@ -291,7 +291,7 @@ class _Osx_Win32(_BaseOsx):
                 return
             else:
                 raise OsxPathAlreadyExistError(path)
-        self.exec_command('mkdir %s' % path)
+        self.exec_command('md %s' % os.path.normpath(path), shell=True)  # mkdir will conflict with cygwin
 
 
 if os.name == 'nt':
