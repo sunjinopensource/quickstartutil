@@ -237,6 +237,8 @@ class _BaseOsx:
     def exec_command(self, cmd, shell=False):
         self.system_exec(cmd, shell=shell, redirect_output_to_log=self.redirect_output_to_log)
 
+    def exec_command_output(self, cmd, shell=False):
+        self.system_output(cmd, shell=shell)
 
 class _Osx_Win32(_BaseOsx):
     def __init__(self, redirect_output_to_log=False):
