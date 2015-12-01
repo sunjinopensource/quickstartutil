@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.10
++ normal path param
+
 ## 0.1.9
 + unified into Osx
 
