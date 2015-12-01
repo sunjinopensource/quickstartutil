@@ -56,17 +56,21 @@ class Error(Exception):
     pass
 
 
-class OsxSystemExecError(Error):
+class OsxError(Error):
+    pass
+
+
+class OsxSystemExecError(OsxError):
     def __init__(self, cmd, code, output, msg):
-        Error.__init__(self, msg)
+        OsxError.__init__(self, msg)
         self.cmd = cmd
         self.code = code
         self.output = output
 
 
-class OsxPathError(Error):
+class OsxPathError(OsxError):
     def __init__(self, path):
-        Error.__init__(self)
+        OsxError.__init__(self)
         self.path = path
 
 
@@ -99,8 +103,7 @@ class OsxPathTypeUnsupportedError(OsxPathError):
 
 
 class SvnError(Error):
-    def __init__(self, msg):
-        Error.__init__(self, msg)
+    pass
 
 
 class SvnNoMessageError(SvnError):
@@ -175,9 +178,9 @@ class _BaseOsx:
         :except: raise OsxSystemExecError on failure
         """
         if redirect_output_to_log:
-            _system_exec_2(cmd, shell)
+            cls._system_exec_2(cmd, shell)
         else:
-            _system_exec_1(cmd, shell)
+            cls._system_exec_1(cmd, shell)
 
     @classmethod
     def system_output(cls, cmd, shell=False):
@@ -324,9 +327,13 @@ class Svn:
             if url.startswith(prefix):
                 return True
 
-    def __init__(self, user_pass=None, redirect_output_to_log=False):
+    def __init__(self, user_pass=None, interactive=False, auth_cache=False, redirect_output_to_log=False):
         self.str_user_pass_option = self.stringing_user_pass_option(user_pass)
-        self.base_command = 'svn --non-interactive --no-auth-cache'
+        self.base_command = 'svn'
+        if not interactive:
+            self.base_command += ' --non-interactive'
+        if not auth_cache:
+            self.base_command += ' --no-auth-cache'
         self.redirect_output_to_log = redirect_output_to_log
         self.osx = Osx(redirect_output_to_log)
 
