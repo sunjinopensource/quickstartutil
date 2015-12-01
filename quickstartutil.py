@@ -145,7 +145,7 @@ def _to_local_str(s):
     if _PY3:
         return s
     else:
-        _to_unicode_str(s).encode(_local_encoding)
+        return _to_unicode_str(s).encode(_local_encoding)
 
 
 class _BaseOsx:
