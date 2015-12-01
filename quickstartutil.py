@@ -12,18 +12,14 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-__version__ = '0.1.8'
+__version__ = '0.1.9'
 
 
 __all__ = ['Error',
-           'SystemExecError',
-           'PathError', 'PathNotExistError', 'PathAlreadyExistError', 'PathTypeUnsupportedError',
+           'OsxSystemExecError', 'OsxPathError', 'OsxPathNotExistError', 'OsxPathAlreadyExistError', 'OsxPathTypeUnsupportedError',
            'SvnError', 'SvnNoMessageError', 'SvnAlreadyLockedError', 'SvnBranchDestinationAlreadyExist',
            'set_logger', 'set_local_encoding',
-           'system_exec', 'system_output',
-           'ChangeDirectory',
-           'is_path_exist', 'is_directory', 'is_file',
-           'OSX', 'osx',
+           'Osx', 'osx',
            'Svn', 'svn']
 
 
@@ -60,7 +56,7 @@ class Error(Exception):
     pass
 
 
-class SystemExecError(Error):
+class OsxSystemExecError(Error):
     def __init__(self, cmd, code, output, msg):
         Error.__init__(self, msg)
         self.cmd = cmd
@@ -68,31 +64,31 @@ class SystemExecError(Error):
         self.output = output
 
 
-class PathError(Error):
+class OsxPathError(Error):
     def __init__(self, path):
         Error.__init__(self)
         self.path = path
 
 
-class PathNotExistError(PathError):
+class OsxPathNotExistError(OsxPathError):
     def __init__(self, path):
-        PathError.__init__(self, path)
+        OsxPathError.__init__(self, path)
 
     def __str__(self):
         return "path '%s' not exist" % self.path
 
 
-class PathAlreadyExistError(PathError):
+class OsxPathAlreadyExistError(OsxPathError):
     def __init__(self, path):
-        PathError.__init__(self, path)
+        OsxPathError.__init__(self, path)
 
     def __str__(self):
         return "path '%s' already exist" % self.path
 
 
-class PathTypeUnsupportedError(PathError):
+class OsxPathTypeUnsupportedError(OsxPathError):
     def __init__(self, path, msg=None):
-        PathError.__init__(self, path)
+        OsxPathError.__init__(self, path)
         self.message = msg
 
     def __str__(self):
@@ -128,114 +124,113 @@ class SvnBranchDestinationAlreadyExist(SvnError):
         self.dst = dst
 
 
-def _system_exec_1(cmd, shell=False):
-    """
-    Execute command and wait complete.
-    The normal output & error will output to console.
-    It's recommended for long time operation.
-    :except: raise SystemCallError on failure
-    """
-    _logger.info('>>> %s' % cmd)
-    try:
-        subprocess.check_call(_to_local_str(cmd), stderr=subprocess.STDOUT, shell=shell)
-    except subprocess.CalledProcessError as e:
-        final_code = _fix_cmd_retcode(e.returncode)
-        raise SystemExecError(cmd, final_code, None, "subprocess.check_call failed(%d): %s" % (final_code, e))
+class _BaseOsx:
+    class ChangeDirectory:
+        def __init__(self, target):
+            self.old_cwd = os.getcwd()
+            self.target = target
 
+        def __enter__(self):
+            _logger.info('>>> cd %s', self.target)
+            os.chdir(_to_local_str(self.target))
+            return self
 
-def _system_exec_2(cmd, shell=False):
-    _logger.info('>>> %s' % cmd)
-    try:
-        output = subprocess.check_output(_to_local_str(cmd), stderr=subprocess.STDOUT, shell=shell)
-        _logger.info(output)
-    except subprocess.CalledProcessError as e:
-        _logger.error(e.output)
-        final_code = _fix_cmd_retcode(e.returncode)
-        raise SystemExecError(cmd, final_code, e.output, "subprocess.check_output failed(%d): %s" % (final_code, e))
+        def __exit__(self, exc_type, exc_value, exc_tb):
+            _logger.info('>>> cd %s', self.old_cwd)
+            os.chdir(self.old_cwd)
 
+    @classmethod
+    def _system_exec_1(cls, cmd, shell=False):
+        """
+        Execute command and wait complete.
+        The normal output & error will output to console.
+        It's recommended for long time operation.
+        :except: raise SystemCallError on failure
+        """
+        _logger.info('>>> %s' % cmd)
+        try:
+            subprocess.check_call(_to_local_str(cmd), stderr=subprocess.STDOUT, shell=shell)
+        except subprocess.CalledProcessError as e:
+            final_code = _fix_cmd_retcode(e.returncode)
+            raise OsxSystemExecError(cmd, final_code, None, "subprocess.check_call failed(%d): %s" % (final_code, e))
 
-def system_exec(cmd, shell=False, redirect_output_to_log=False):
-    """
-    Execute command and wait complete.
-    :param: redirect_output_to_log:
-      True: OUTPUT & ERROR will redirect to the logger
-      False: OUTPUT & ERROR will output to console. It's recommended for long-time operation
-    :except: raise SystemExecError on failure
-    """
-    if redirect_output_to_log:
-        _system_exec_2(cmd, shell)
-    else:
-        _system_exec_1(cmd, shell)
+    @classmethod
+    def _system_exec_2(cls, cmd, shell=False):
+        _logger.info('>>> %s' % cmd)
+        try:
+            output = subprocess.check_output(_to_local_str(cmd), stderr=subprocess.STDOUT, shell=shell)
+            _logger.info(output)
+        except subprocess.CalledProcessError as e:
+            _logger.error(e.output)
+            final_code = _fix_cmd_retcode(e.returncode)
+            raise OsxSystemExecError(cmd, final_code, e.output, "subprocess.check_output failed(%d): %s" % (final_code, e))
 
+    @classmethod
+    def system_exec(cls, cmd, shell=False, redirect_output_to_log=False):
+        """
+        Execute command and wait complete.
+        :param: redirect_output_to_log:
+          True: OUTPUT & ERROR will redirect to the logger
+          False: OUTPUT & ERROR will output to console. It's recommended for long-time operation
+        :except: raise OsxSystemExecError on failure
+        """
+        if redirect_output_to_log:
+            _system_exec_2(cmd, shell)
+        else:
+            _system_exec_1(cmd, shell)
 
-def system_output(cmd, shell=False):
-    """
-    Execute command and return it's output
-    raise SystemExecError on failure
-    """
-    try:
-        return subprocess.check_output(_to_local_str(cmd), stderr=subprocess.STDOUT, shell=shell)
-    except subprocess.CalledProcessError as e:
-        final_code = e.returncode if os.name == 'nt' else (e.returncode >> 8)
-        raise SystemExecError(cmd, final_code, e.output, "subprocess.check_output failed(%d): %s" % (final_code, e))
+    @classmethod
+    def system_output(cls, cmd, shell=False):
+        """
+        Execute command and return it's output
+        raise OsxSystemExecError on failure
+        """
+        try:
+            return subprocess.check_output(_to_local_str(cmd), stderr=subprocess.STDOUT, shell=shell)
+        except subprocess.CalledProcessError as e:
+            final_code = e.returncode if os.name == 'nt' else (e.returncode >> 8)
+            raise OsxSystemExecError(cmd, final_code, e.output, "subprocess.check_output failed(%d): %s" % (final_code, e))
 
+    @classmethod
+    def is_path_exist(cls, path):
+        return os.path.exists(_to_local_str(path))
 
-class ChangeDirectory:
-    def __init__(self, target):
-        self.old_cwd = os.getcwd()
-        self.target = target
+    @classmethod
+    def is_directory(cls, path):
+        return os.path.isdir(_to_local_str(path))
 
-    def __enter__(self):
-        _logger.info('>>> cd %s', self.target)
-        os.chdir(_to_local_str(self.target))
-        return self
+    @classmethod
+    def is_file(cls, path):
+        return os.path.isfile(_to_local_str(path))
 
-    def __exit__(self, exc_type, exc_value, exc_tb):
-        _logger.info('>>> cd %s', self.old_cwd)
-        os.chdir(self.old_cwd)
-
-
-def is_path_exist(path):
-    return os.path.exists(_to_local_str(path))
-
-
-def is_directory(path):
-    return os.path.isdir(_to_local_str(path))
-
-
-def is_file(path):
-    return os.path.isfile(_to_local_str(path))
-
-
-class _BaseOSX:
     def __init__(self, redirect_output_to_log=False):
         self.redirect_output_to_log = redirect_output_to_log
 
     def exec_command(self, cmd, shell=False):
-        system_exec(cmd, shell=shell, redirect_output_to_log=self.redirect_output_to_log)
+        self.system_exec(cmd, shell=shell, redirect_output_to_log=self.redirect_output_to_log)
 
 
-class _OSX_Win32(_BaseOSX):
+class _Osx_Win32(_BaseOsx):
     def __init__(self, redirect_output_to_log=False):
-        _BaseOSX.__init__(self, redirect_output_to_log)
+        _BaseOsx.__init__(self, redirect_output_to_log)
 
     def remove_path(self, path, force=True):
         """
         :param force: if set to True then un-exist path will not raise exception
-        :except: PathNotExistError, PathTypeUnsupportedError
+        :except: OsxPathNotExistError, OsxPathTypeUnsupportedError
         """
-        if not is_path_exist(path):
+        if not self.is_path_exist(path):
             if force:
                 return
             else:
-                raise PathNotExistError(path)
+                raise OsxPathNotExistError(path)
 
-        if is_directory(path):
+        if self.is_directory(path):
             self.exec_command('rd /s/q %s' % path, shell=True)
-        elif is_file(path):
+        elif self.is_file(path):
             self.exec_command('del /f/q %s' % path, shell=True)
         else:
-            raise PathTypeUnsupportedError(path, "'%s' is not a valid file or directory path" % path)
+            raise OsxPathTypeUnsupportedError(path, "'%s' is not a valid file or directory path" % path)
 
     def copy_directory(self, src_dir, dst_dir, excludes=None):
         """
@@ -259,24 +254,24 @@ class _OSX_Win32(_BaseOSX):
         Create directory structure recursively
         any intermediate path segment (not just the rightmost) will be created if it does not exist.
         :param force: if set to True then existed path will not raise exception
-        :except: PathAlreadyExistError
+        :except: OsxPathAlreadyExistError
         """
-        if is_path_exist(path):
+        if self.is_path_exist(path):
             if force:
                 return
             else:
-                raise PathAlreadyExistError(path)
+                raise OsxPathAlreadyExistError(path)
         self.exec_command('mkdir %s' % path)
 
 
 if os.name == 'nt':
-    OSX = _OSX_Win32
+    Osx = _Osx_Win32
 else:
     raise NotImplementedError('Unsupported os.')
 
 
-# default OSX object
-osx = OSX()
+# default Osx object
+osx = Osx()
 
 
 class Svn:
@@ -333,13 +328,13 @@ class Svn:
         self.str_user_pass_option = self.stringing_user_pass_option(user_pass)
         self.base_command = 'svn --non-interactive --no-auth-cache'
         self.redirect_output_to_log = redirect_output_to_log
-        self.osx = OSX(redirect_output_to_log)
+        self.osx = Osx(redirect_output_to_log)
 
     def exec_sub_command(self, sub_command):
-        system_exec(self.base_command + ' ' + sub_command, redirect_output_to_log=self.redirect_output_to_log)
+        self.osx.system_exec(self.base_command + ' ' + sub_command, redirect_output_to_log=self.redirect_output_to_log)
 
     def exec_sub_command_output(self, sub_command):
-        return system_output(self.base_command + ' ' + sub_command)
+        return self.osx.system_output(self.base_command + ' ' + sub_command)
 
     def info_dict(self, path='.'):
         ret = {}
@@ -527,7 +522,7 @@ class Svn:
         try:
             self.info_dict(dst)
             raise SvnBranchDestinationAlreadyExist(dst)
-        except SystemExecError:
+        except OsxSystemExecError:
             pass
 
         cmd = 'copy ' + src + ' ' + dst
