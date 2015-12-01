@@ -25,35 +25,23 @@ __all__ = ['Error',
 
 if sys.version_info[0] == 3:
     _PY3 = True
+    _unicode = str
 else:
     _PY3 = False
-
-
-_logger = logging.getLogger('quickstartutil')
-def set_logger(logger):
-    global _logger
-    _logger = logger
-
-
-_local_encoding = locale.getdefaultlocale()[1]
-def set_local_encoding(local_encoding):
-    global _local_encoding
-    _local_encoding = local_encoding
-
-
-def _to_local_str(cmd):
-    if _PY3:
-        return cmd
-    else:
-        return cmd.decode('utf8').encode(_local_encoding)
-
-
-def _fix_cmd_retcode(retcode):
-    return retcode if os.name == 'nt' else (retcode >> 8)
+    _unicode = unicode
 
 
 class Error(Exception):
     pass
+
+
+class UnsupportedLocalEncoding(Error):
+    def __init__(self, msg):
+        Error.__init__(self, msg)
+        self.msg = msg
+
+    def __str__(self):
+        return "Message '%s' can't decode by local encoding [%s]" % (self.msg, ', '.join(_local_encoding))
 
 
 class OsxError(Error):
@@ -127,6 +115,42 @@ class SvnBranchDestinationAlreadyExist(SvnError):
         self.dst = dst
 
 
+_logger = logging.getLogger('quickstartutil')
+def set_logger(logger):
+    global _logger
+    _logger = logger
+
+
+_default_local_encodings = [locale.getdefaultlocale()[1], 'utf8', 'gbk']
+_local_encoding = _default_local_encodings[:]
+def set_local_encoding(encoding):
+    global _local_encoding
+    _local_encoding.remove(encoding)
+    _local_encoding.insert(0, encoding)
+
+
+def _to_local_str(s):
+    if _PY3:
+        return s
+    else:
+        return s.decode('utf8').encode(_local_encoding[0])
+
+
+def _to_unicode_str(s):
+    if isinstance(s, _unicode):
+        return s
+    for encoding in _local_encoding:
+        try:
+            return s.decode(encoding)
+        except:
+            pass
+        raise UnsupportedLocalEncoding(s)
+
+
+def _fix_cmd_retcode(retcode):
+    return retcode if os.name == 'nt' else (retcode >> 8)
+
+
 class _BaseOsx:
     class ChangeDirectory:
         def __init__(self, target):
@@ -134,12 +158,12 @@ class _BaseOsx:
             self.target = target
 
         def __enter__(self):
-            _logger.info('>>> cd %s', self.target)
+            _logger.info(u'>>> cd %s', _to_unicode_str(self.target))
             os.chdir(_to_local_str(self.target))
             return self
 
         def __exit__(self, exc_type, exc_value, exc_tb):
-            _logger.info('>>> cd %s', self.old_cwd)
+            _logger.info(u'>>> cd %s', _to_unicode_str(self.old_cwd))
             os.chdir(self.old_cwd)
 
     @classmethod
@@ -150,7 +174,7 @@ class _BaseOsx:
         It's recommended for long time operation.
         :except: raise SystemCallError on failure
         """
-        _logger.info('>>> %s' % cmd)
+        _logger.info(u'>>> %s' % _to_unicode_str(cmd))
         try:
             subprocess.check_call(_to_local_str(cmd), stderr=subprocess.STDOUT, shell=shell)
         except subprocess.CalledProcessError as e:
@@ -159,12 +183,12 @@ class _BaseOsx:
 
     @classmethod
     def _system_exec_2(cls, cmd, shell=False):
-        _logger.info('>>> %s' % cmd)
+        _logger.info(u'>>> %s' % _to_unicode_str(cmd))
         try:
             output = subprocess.check_output(_to_local_str(cmd), stderr=subprocess.STDOUT, shell=shell)
-            _logger.info(output)
+            _logger.info(_to_unicode_str(output))
         except subprocess.CalledProcessError as e:
-            _logger.error(e.output)
+            _logger.error(_to_unicode_str(e.output))
             final_code = _fix_cmd_retcode(e.returncode)
             raise OsxSystemExecError(cmd, final_code, e.output, "subprocess.check_output failed(%d): %s" % (final_code, e))
 
