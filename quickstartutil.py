@@ -12,7 +12,7 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-__version__ = '0.1.10'
+__version__ = '0.1.11'
 
 
 __all__ = ['Error',
@@ -369,6 +369,13 @@ class Svn:
 
     def exec_sub_command_output(self, sub_command):
         return self.osx.system_output(self.base_command + ' ' + sub_command)
+
+    def is_valid_svn_path(self, path):
+        try:
+            self.exec_sub_command_output('info ' + path)
+        except OsxSystemExecError as e:
+            return False
+        return True
 
     def info_dict(self, path='.'):
         ret = {}

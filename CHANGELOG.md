@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.11
++ Svn.is_valid_svn_path
+
 ## 0.1.10
 + normal path param
 
