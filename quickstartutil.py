@@ -12,7 +12,7 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-__version__ = '0.1.12'
+__version__ = '0.1.13'
 
 
 __all__ = ['Error',
@@ -439,12 +439,19 @@ class Svn:
 
         return ret
 
-    def log(self, path='.', revision='HEAD', limit=None, show_detail_changes=False):
+    def log(self, path='.', revision='HEAD', limit=None, show_detail_changes=False, search_pattern=None):
         """
         :param path: working copy path or remote url
         :param revision: single revision number or revision range tuple/list
         :param limit: when the revision is a range, limit the record count
         :param show_detail_changes:
+        :param search_pattern:
+            - search in the limited records(by param limit)
+            - matches any of the author, date, log message text, if show_detail_changes is True also a changed path
+            - The search pattern use "glob syntax" wildcards
+              ?      matches any single character
+              *      matches a sequence of arbitrary characters
+              [abc]  matches any of the characters listed inside the brackets
         example:
             revision=(5, 10) limit=2 output: 5, 6
             revision=(10, 5) limit=2 output: 10, 9
@@ -456,6 +463,8 @@ class Svn:
             cmd += ' -l %s' % limit
         if show_detail_changes:
             cmd += ' -v'
+        if search_pattern is not None:
+            cmd += ' --search %s' % search_pattern
         if self.is_url(path):
             cmd += ' ' + self.str_user_pass_option
         result = self.exec_sub_command_output(cmd)

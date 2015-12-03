@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.13
++ Svn.log support search pattern
+
 ## 0.1.12
 + Svn.log
 
