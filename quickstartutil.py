@@ -12,7 +12,7 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-__version__ = '0.1.11'
+__version__ = '0.1.12'
 
 
 __all__ = ['Error',
@@ -331,11 +331,16 @@ class Svn:
 
     @classmethod
     def stringing_revision_option(cls, revision):
-        if revision is None:
-            return '-r HEAD'
-        if isinstance(revision, int):
-            return '-r %d' % revision
         return '-r %s' % revision
+
+    @classmethod
+    def stringing_revision_option_ex(cls, revision):
+        """
+        Support revision range
+        """
+        if isinstance(revision, tuple) or isinstance(revision, list):
+            return '-r %s:%s' % (revision[0], revision[1])
+        return cls.stringing_revision_option(revision)
 
     @classmethod
     def stringing_message_option(cls, message):
@@ -350,9 +355,10 @@ class Svn:
 
     @classmethod
     def is_url(cls, url):
-        for prefix in ('file:\\\\\\' 'svn://', 'http://', 'https://'):
+        for prefix in ('file:\\\\\\', 'svn://', 'http://', 'https://'):
             if url.startswith(prefix):
                 return True
+        return False
 
     def __init__(self, user_pass=None, interactive=False, auth_cache=False, redirect_output_to_log=False):
         self.str_user_pass_option = self.stringing_user_pass_option(user_pass)
@@ -371,18 +377,26 @@ class Svn:
         return self.osx.system_output(self.base_command + ' ' + sub_command)
 
     def is_valid_svn_path(self, path):
+        cmd = 'info ' + path
+        if self.is_url(path):
+            cmd += ' ' + self.str_user_pass_option
         try:
-            self.exec_sub_command_output('info ' + path)
+            self.exec_sub_command_output(cmd)
         except OsxSystemExecError as e:
             return False
         return True
 
-    def info_dict(self, path='.'):
-        ret = {}
-        result = self.exec_sub_command_output('info --xml ' + path)
+    def info_dict(self, path='.', revision='HEAD'):
+        cmd = 'info ' + path
+        cmd += ' --xml'
+        cmd += ' ' + self.stringing_revision_option(revision)
+        if self.is_url(path):
+            cmd += ' ' + self.str_user_pass_option
+        result = self.exec_sub_command_output(cmd)
         root = ElementTree.fromstring(result)
         entry_node = root.find('entry')
 
+        ret = {}
         ret['#kind'] = entry_node.attrib['kind']
         ret['#path'] = entry_node.attrib['path']
         ret['#revision'] = int(entry_node.attrib['revision'])
@@ -425,19 +439,63 @@ class Svn:
 
         return ret
 
-    def checkout(self, url, path='.', revision=None):
+    def log(self, path='.', revision='HEAD', limit=None, show_detail_changes=False):
+        """
+        :param path: working copy path or remote url
+        :param revision: single revision number or revision range tuple/list
+        :param limit: when the revision is a range, limit the record count
+        :param show_detail_changes:
+        example:
+            revision=(5, 10) limit=2 output: 5, 6
+            revision=(10, 5) limit=2 output: 10, 9
+        """
+        cmd = 'log ' + path
+        cmd += ' --xml'
+        cmd += ' ' + self.stringing_revision_option_ex(revision)
+        if limit is not None:
+            cmd += ' -l %s' % limit
+        if show_detail_changes:
+            cmd += ' -v'
+        if self.is_url(path):
+            cmd += ' ' + self.str_user_pass_option
+        result = self.exec_sub_command_output(cmd)
+        root = ElementTree.fromstring(result)
+
+        ret = []
+        for logentry_node in root.iterfind('logentry'):
+            logentry = {}
+            ret.append(logentry)
+            logentry['#revision'] = logentry_node.attrib['revision']
+            logentry['author'] = logentry_node.find('author').text
+            logentry['date'] = logentry_node.find('date').text
+            logentry['msg'] = logentry_node.find('msg').text
+            paths_node = logentry_node.find('paths')
+            if paths_node is not None:
+                paths = []
+                logentry['paths'] = paths
+                for path_node in paths_node.iterfind('path'):
+                    path = {}
+                    paths.append(path)
+                    path['#'] = path_node.text
+                    path['#prop-mods'] = True if path_node.attrib['prop-mods']=='true' else False
+                    path['#text-mods'] = True if path_node.attrib['text-mods']=='true' else False
+                    path['#kind'] = path_node.attrib['kind']
+                    path['#action'] = path_node.attrib['action']
+        return ret
+
+    def checkout(self, url, path='.', revision='HEAD'):
         cmd = 'checkout ' + url + ' ' + path
         cmd += ' ' + self.stringing_revision_option(revision)
         cmd += ' ' + self.str_user_pass_option
         self.exec_sub_command(cmd)
 
-    def update(self, path_list='.', revision=None):
+    def update(self, path_list='.', revision='HEAD'):
         cmd = 'update ' + self.stringing_path_list(path_list)
         cmd += ' ' + self.stringing_revision_option(revision)
         cmd += ' ' + self.str_user_pass_option
         self.exec_sub_command(cmd)
 
-    def update_or_checkout(self, url, path='.', revision=None):
+    def update_or_checkout(self, url, path='.', revision='HEAD'):
         if os.path.exists(path):
             self.update(path, revision)
         else:
@@ -552,7 +610,7 @@ class Svn:
         cmd += ' ' + self.str_user_pass_option
         self.exec_sub_command(cmd)
 
-    def branch(self, src, dst, msg, revision=None):
+    def branch(self, src, dst, msg, revision='HEAD'):
         """
         :except:
             SvnNoMessageError: if msg is empty
