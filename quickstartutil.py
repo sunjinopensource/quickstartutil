@@ -311,6 +311,8 @@ class Svn:
     Global param:
         user_pass: None or a tuple with username & password
         revision: can be integer or string
+        revision_or_range: can be a single revision or a list/tuple range of revision
+            if specified by a range, both range bound will be included.
         path_list: can be a single string or a list/tuple of path
     """
 
@@ -387,6 +389,23 @@ class Svn:
             return False
         return True
 
+    def get_revision_number(self, path, revision):
+        """
+        transform revision 'HEAD', 'BASE', 'COMMITTED', 'PREV' to integer
+        """
+        if isinstance(revision, int):
+            return revision
+
+        cmd = 'info ' + path
+        cmd += ' --xml'
+        cmd += ' ' + self.stringing_revision_option(revision)
+        if self.is_url(path):
+            cmd += ' ' + self.str_user_pass_option
+        result = self.exec_sub_command_output(cmd)
+        root = ElementTree.fromstring(result)
+        entry_node = root.find('entry')
+        return int(entry_node.attrib['revision'])
+
     def info_dict(self, path='.', revision='HEAD'):
         cmd = 'info ' + path
         cmd += ' --xml'
@@ -440,10 +459,14 @@ class Svn:
 
         return ret
 
-    def log(self, path='.', revision_or_range='HEAD', limit=None, show_detail_changes=False, search_pattern=None):
+    def log(self, path='.', revision_or_range=('HEAD', 1), limit=None, show_detail_changes=False, search_pattern=None):
         """
         :param path: working copy path or remote url
         :param revision_or_range: single revision number or revision range tuple/list
+            - if range specified, format as (5, 10) or (10, 50) are both supported
+                - for (5, 10): return list ordered by 5 -> 10
+                - for (10, 5): return list ordered by 10 -> 5
+                - the bound revision 5 or 10 also included
         :param limit: when the revision is a range, limit the record count
         :param show_detail_changes:
         :param search_pattern:
@@ -641,6 +664,25 @@ class Svn:
         cmd += ' ' + self.str_user_pass_option
         self.exec_sub_command(cmd)
 
+    def rollback(self, revision_or_range, path='.'):
+        """
+        rollback path changes made by commits in revision_or_range
+        """
+        if isinstance(revision_or_range, tuple) or isinstance(revision_or_range, list):
+            start_revision = self.get_revision_number(path, revision_or_range[0])
+            end_revision = self.get_revision_number(path, revision_or_range[1])
+            if start_revision < end_revision:
+                start_revision, end_revision = end_revision, start_revision
+            revision_or_range = (start_revision, end_revision-1) if isinstance(revision_or_range, tuple) else [start_revision, end_revision-1]
+        else:
+            revision_or_range = self.get_revision_number(path, revision_or_range)
+            revision_or_range = '-%d' % revision_or_range
+
+        cmd = 'merge '
+        cmd += ' ' + self.stringing_revision_or_range_option(revision_or_range)
+        cmd += ' ' + path
+        cmd += ' ' + path
+        self.exec_sub_command(cmd)
 
 # default Svn object
 svn = Svn()
