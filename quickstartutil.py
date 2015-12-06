@@ -138,7 +138,7 @@ def _to_unicode_str(s):
             return s.decode(encoding)
         except:
             pass
-        raise UnsupportedEncodingError(s)
+        raise UnsupportedEncodingError(s, _to_unicode_str_encodings)
 
 
 def _to_local_str(s):
@@ -231,18 +231,21 @@ class _BaseOsx:
     def is_file(cls, path):
         return os.path.isfile(_to_local_str(path))
 
-    def __init__(self, redirect_output_to_log=False):
+    def __init__(self):
+        self.redirect_output_to_log = False
+
+    def set_redirect_output_to_log(self, redirect_output_to_log=True):
         self.redirect_output_to_log = redirect_output_to_log
 
     def exec_command(self, cmd, shell=False):
         self.system_exec(cmd, shell=shell, redirect_output_to_log=self.redirect_output_to_log)
 
     def exec_command_output(self, cmd, shell=False):
-        self.system_output(cmd, shell=shell)
+        return self.system_output(cmd, shell=shell)
 
 class _Osx_Win32(_BaseOsx):
-    def __init__(self, redirect_output_to_log=False):
-        _BaseOsx.__init__(self, redirect_output_to_log)
+    def __init__(self):
+        _BaseOsx.__init__(self)
 
     def remove_path(self, path, force=True):
         """
@@ -329,6 +332,7 @@ class Svn:
         if user_pass is not None:
             s += '--username ' + user_pass[0]
             s += ' --password ' + user_pass[1]
+            s += ' --no-auth-cache'
         return s
 
     @classmethod
@@ -363,21 +367,21 @@ class Svn:
                 return True
         return False
 
-    def __init__(self, user_pass=None, interactive=False, auth_cache=False, redirect_output_to_log=False):
+    def __init__(self, user_pass=None, interactive=False):
         self.str_user_pass_option = self.stringing_user_pass_option(user_pass)
         self.base_command = 'svn'
         if not interactive:
             self.base_command += ' --non-interactive'
-        if not auth_cache:
-            self.base_command += ' --no-auth-cache'
-        self.redirect_output_to_log = redirect_output_to_log
-        self.osx = Osx(redirect_output_to_log)
+        self.osx = Osx()
+
+    def set_redirect_output_to_log(self, redirect_output_to_log=True):
+        self.osx.set_redirect_output_to_log(redirect_output_to_log)
 
     def exec_sub_command(self, sub_command):
-        self.osx.system_exec(self.base_command + ' ' + sub_command, redirect_output_to_log=self.redirect_output_to_log)
+        self.osx.exec_command(self.base_command + ' ' + sub_command)
 
     def exec_sub_command_output(self, sub_command):
-        return self.osx.system_output(self.base_command + ' ' + sub_command)
+        return self.osx.exec_command_output(self.base_command + ' ' + sub_command)
 
     def is_valid_svn_path(self, path):
         cmd = 'info ' + path
@@ -686,3 +690,9 @@ class Svn:
 
 # default Svn object
 svn = Svn()
+
+import quickstartlog
+set_logger(quickstartlog)
+
+svn.set_redirect_output_to_log(True)
+svn.rollback('HEAD', r'C:\Users\Administrator\Desktop\svnstest\wc')
