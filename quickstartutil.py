@@ -334,13 +334,14 @@ class Svn:
         return '-r %s' % revision
 
     @classmethod
-    def stringing_revision_option_ex(cls, revision):
+    def stringing_revision_or_range_option(cls, revision_or_range):
         """
-        Support revision range
+        -r M:N for revision range
+        -c for single revision
         """
-        if isinstance(revision, tuple) or isinstance(revision, list):
-            return '-r %s:%s' % (revision[0], revision[1])
-        return cls.stringing_revision_option(revision)
+        if isinstance(revision_or_range, tuple) or isinstance(revision_or_range, list):
+            return '-r %s:%s' % (revision_or_range[0], revision_or_range[1])
+        return '-c %s' % revision_or_range
 
     @classmethod
     def stringing_message_option(cls, message):
@@ -439,10 +440,10 @@ class Svn:
 
         return ret
 
-    def log(self, path='.', revision='HEAD', limit=None, show_detail_changes=False, search_pattern=None):
+    def log(self, path='.', revision_or_range='HEAD', limit=None, show_detail_changes=False, search_pattern=None):
         """
         :param path: working copy path or remote url
-        :param revision: single revision number or revision range tuple/list
+        :param revision_or_range: single revision number or revision range tuple/list
         :param limit: when the revision is a range, limit the record count
         :param show_detail_changes:
         :param search_pattern:
@@ -458,7 +459,7 @@ class Svn:
         """
         cmd = 'log ' + path
         cmd += ' --xml'
-        cmd += ' ' + self.stringing_revision_option_ex(revision)
+        cmd += ' ' + self.stringing_revision_or_range_option(revision_or_range)
         if limit is not None:
             cmd += ' -l %s' % limit
         if show_detail_changes:
