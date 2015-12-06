@@ -690,9 +690,3 @@ class Svn:
 
 # default Svn object
 svn = Svn()
-
-import quickstartlog
-set_logger(quickstartlog)
-
-svn.set_redirect_output_to_log(True)
-svn.rollback('HEAD', r'C:\Users\Administrator\Desktop\svnstest\wc')
