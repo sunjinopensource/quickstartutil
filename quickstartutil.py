@@ -138,7 +138,7 @@ def _to_unicode_str(s):
             return s.decode(encoding)
         except:
             pass
-        raise UnsupportedEncodingError(s, _to_unicode_str_encodings)
+    raise UnsupportedEncodingError(s, _to_unicode_str_encodings)
 
 
 def _to_local_str(s):
