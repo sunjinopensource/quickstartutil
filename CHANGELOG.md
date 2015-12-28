@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.15
++ revision argument can be None or empty string
+
 ## 0.1.14
 + Svn.rollback
 

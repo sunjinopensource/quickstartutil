@@ -12,7 +12,7 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-__version__ = '0.1.14'
+__version__ = '0.1.15'
 
 
 __all__ = ['Error',
@@ -337,6 +337,8 @@ class Svn:
 
     @classmethod
     def stringing_revision_option(cls, revision):
+        if revision is None or revision == '':
+            return ''
         return '-r %s' % revision
 
     @classmethod
