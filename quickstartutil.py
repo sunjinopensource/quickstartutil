@@ -21,7 +21,8 @@ __all__ = ['Error',
            'GitError', 'GitParseMetaDataError',
            'set_logger', 'set_local_encoding',
            'Osx', 'osx',
-           'Svn', 'svn']
+           'Svn', 'svn',
+           'Git', 'git']
 
 
 if sys.version_info[0] == 3:
