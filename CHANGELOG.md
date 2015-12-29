@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.16
++ Git.get_current_branch
+
 ## 0.1.15
 + revision argument can be None or empty string
 

@@ -12,7 +12,7 @@ except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-__version__ = '0.1.15'
+__version__ = '0.1.16'
 
 
 __all__ = ['Error',
@@ -114,6 +114,15 @@ class SvnBranchDestinationAlreadyExistError(SvnError):
     def __init__(self, dst):
         SvnError.__init__(self, "svn: branch destination '%s' already exist" % dst)
         self.dst = dst
+
+
+class GitError(Error):
+    pass
+
+
+class GitMetaDataError(GitError):
+    def __init__(self, msg):
+        SvnError.__init__(self, "git meta data error: %s" % msg)
 
 
 _logger = logging.getLogger('quickstartutil')
@@ -692,3 +701,41 @@ class Svn:
 
 # default Svn object
 svn = Svn()
+
+
+class Git:
+    """
+    A git command wrapper.
+    """
+    def __init__(self):
+        self.base_command = 'git'
+        self.meta_data_base_dir = '.git'
+        self.osx = Osx()
+
+    def set_redirect_output_to_log(self, redirect_output_to_log=True):
+        self.osx.set_redirect_output_to_log(redirect_output_to_log)
+
+    def exec_sub_command(self, sub_command):
+        self.osx.exec_command(self.base_command + ' ' + sub_command)
+
+    def exec_sub_command_output(self, sub_command):
+        return self.osx.exec_command_output(self.base_command + ' ' + sub_command)
+
+    def get_current_branch(self, path='.'):
+        """
+        return a tuple(branch_name, revision)
+        """
+        try:
+            with open(os.path.join(path, self.meta_data_base_dir, 'HEAD')) as fp:
+                line = fp.readline().rstrip('\n')
+                refs_heads = line.split(': ')[1]
+                branch_name = refs_heads[len('refs/heads/'):]
+                with open(os.path.normpath(os.path.join(path, self.meta_data_base_dir, refs_heads))) as fp2:
+                    revision = fp2.readline().rstrip('\n')
+                    return (branch_name, revision)
+        except Exception as e:
+            raise GitMetaDataError("Can't parse branch data from %s/HEAD: %s" % (self.meta_data_base_dir, str(e)))
+
+
+# default Git object
+git = Git()
