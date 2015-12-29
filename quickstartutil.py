@@ -18,6 +18,7 @@ __version__ = '0.1.16'
 __all__ = ['Error',
            'OsxSystemExecError', 'OsxPathError', 'OsxPathNotExistError', 'OsxPathAlreadyExistError', 'OsxPathTypeUnsupportedError',
            'SvnError', 'SvnNoMessageError', 'SvnAlreadyLockedError', 'SvnBranchDestinationAlreadyExistError',
+           'GitError', 'GitParseMetaDataError',
            'set_logger', 'set_local_encoding',
            'Osx', 'osx',
            'Svn', 'svn']
@@ -120,7 +121,7 @@ class GitError(Error):
     pass
 
 
-class GitMetaDataError(GitError):
+class GitParseMetaDataError(GitError):
     def __init__(self, msg):
         SvnError.__init__(self, "git meta data error: %s" % msg)
 
@@ -734,7 +735,7 @@ class Git:
                     revision = fp2.readline().rstrip('\n')
                     return (branch_name, revision)
         except Exception as e:
-            raise GitMetaDataError("Can't parse branch data from %s/HEAD: %s" % (self.meta_data_base_dir, str(e)))
+            raise GitParseMetaDataError("Can't parse branch data from %s/HEAD: %s" % (self.meta_data_base_dir, str(e)))
 
 
 # default Git object
