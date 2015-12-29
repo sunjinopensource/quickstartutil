@@ -6,13 +6,14 @@ import logging
 import subprocess
 import tempfile
 import sqlite3
+import zipfile
 try:
     import xml.etree.cElementTree as ElementTree
 except ImportError:
     import xml.etree.ElementTree as ElementTree
 
 
-__version__ = '0.1.16'
+__version__ = '0.1.17'
 
 
 __all__ = ['Error',
@@ -22,7 +23,8 @@ __all__ = ['Error',
            'set_logger', 'set_local_encoding',
            'Osx', 'osx',
            'Svn', 'svn',
-           'Git', 'git']
+           'Git', 'git',
+           'Zip', 'zip']
 
 
 if sys.version_info[0] == 3:
@@ -741,3 +743,66 @@ class Git:
 
 # default Git object
 git = Git()
+
+
+class Zip:
+    """
+    A zip helper.
+    """
+    def __init__(self):
+        pass
+
+    def _zip_file(self, file_path, zip_file_path):
+        zf = zipfile.ZipFile(zip_file_path, "w", zipfile.zlib.DEFLATED)
+        archive_name = os.path.basename(file_path)
+        zf.write(file_path, archive_name)
+        zf.close()
+
+    def _zip_dir(self, dir_path, zip_file_path):
+        file_list = []
+        for root, dirs, files in os.walk(dir_path):
+            for name in dirs:
+                file_list.append(os.path.join(root, name))
+            for name in files:
+                file_list.append(os.path.join(root, name))
+
+        zf_obj = zipfile.ZipFile(zip_file_path, "w", zipfile.zlib.DEFLATED)
+        for file in file_list:
+            archive_name = file[len(dir_path):]
+            zf_obj.write(file, archive_name)
+        zf_obj.close()
+
+    def zip(self, source_path, zip_file_path):
+        """
+        make .zip for directory or single file
+        """
+        if os.path.isfile(source_path):
+            self._zip_file(source_path, zip_file_path)
+        else:
+            self._zip_dir(source_path, zip_file_path)
+
+    def unzip(self, zip_file_path, unzip_to_dir):
+        """
+        unzip .zip into directory
+        """
+        if not os.path.exists(unzip_to_dir):
+            os.makedirs(unzip_to_dir)
+        zf_obj = zipfile.ZipFile(zip_file_path)
+        for name in zf_obj.namelist():
+            name = name.replace('\\','/')
+            if name.endswith('/'):
+                ext_dir = os.path.join(unzip_to_dir, name)
+                if not os.path.exists(ext_dir):
+                    os.mkdir(ext_dir)
+            else:
+                ext_filename = os.path.join(unzip_to_dir, name)
+                ext_dir= os.path.dirname(ext_filename)
+                if not os.path.exists(ext_dir):
+                    os.mkdir(ext_dir,0777)
+                outfile = open(ext_filename, 'wb')
+                outfile.write(zf_obj.read(name))
+                outfile.close()
+
+
+# default Zip object
+zip = Zip()
