@@ -729,16 +729,23 @@ class Git:
         """
         return a tuple(branch_name, revision)
         """
-        try:
-            with open(os.path.join(path, self.meta_data_base_dir, 'HEAD')) as fp:
+        head_file_path = os.path.join(path, self.meta_data_base_dir, 'HEAD')
+        with open(head_file_path) as fp:
+            try:
                 line = fp.readline().rstrip('\n')
                 refs_heads = line.split(': ')[1]
                 branch_name = refs_heads[len('refs/heads/'):]
-                with open(os.path.normpath(os.path.join(path, self.meta_data_base_dir, refs_heads))) as fp2:
-                    revision = fp2.readline().rstrip('\n')
-                    return (branch_name, revision)
-        except Exception as e:
-            raise GitParseMetaDataError("Can't parse branch data from %s/HEAD: %s" % (self.meta_data_base_dir, str(e)))
+            except Exception as e:
+                raise GitParseMetaDataError("Can't parse branch name from head file %s: %s" % (head_file_path, str(e)))
+
+        refs_heads_path = os.path.normpath(os.path.join(path, self.meta_data_base_dir, refs_heads))
+        with open(refs_heads_path) as fp2:
+            try:
+                revision = fp2.readline().rstrip('\n')
+            except Exception as e:
+                raise GitParseMetaDataError("Can't parse revision from %s: %s" % (refs_heads_path, str(e)))
+
+        return (branch_name, revision)
 
 
 # default Git object
