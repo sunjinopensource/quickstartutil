@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.18
++ fix Git.get_current_branch
+
 ## 0.1.17
 + Zip zip
 
