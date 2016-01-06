@@ -30,6 +30,9 @@
 ## 0.1.9
 + unified into Osx
 
+## 0.1.9
++ raw_input_nonblock
+
 ## 0.1.8
 + OSX
 

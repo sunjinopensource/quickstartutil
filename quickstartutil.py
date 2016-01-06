@@ -20,7 +20,7 @@ else:
     _IS_OS_WIN32 = False
 
 
-__version__ = '0.1.18'
+__version__ = '0.1.19'
 
 
 __all__ = ['Error',
