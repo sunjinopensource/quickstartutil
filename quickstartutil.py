@@ -147,7 +147,7 @@ def raw_input_nonblock():
     """
     return result of raw_input if has keyboard input, otherwise return None
     """
-    if os.name == 'nt':
+    if _IS_OS_WIN32:
         return _raw_input_nonblock_win32()
     else:
         raise NotImplementedError('Unsupported os.')
@@ -202,7 +202,7 @@ class _BaseOsx:
 
     @classmethod
     def _fix_cmd_retcode(cls, retcode):
-        return retcode if os.name == 'nt' else (retcode >> 8)
+        return retcode if _IS_OS_WIN32 else (retcode >> 8)
 
     @classmethod
     def _system_exec_1(cls, cmd, shell=False):
@@ -253,7 +253,7 @@ class _BaseOsx:
         try:
             return subprocess.check_output(_to_local_str(cmd), stderr=subprocess.STDOUT, shell=shell)
         except subprocess.CalledProcessError as e:
-            final_code = e.returncode if os.name == 'nt' else (e.returncode >> 8)
+            final_code = e.returncode if _IS_OS_WIN32 else (e.returncode >> 8)
             raise OsxSystemExecError(cmd, final_code, e.output, "subprocess.check_output failed(%d): %s" % (final_code, e))
 
     @classmethod
@@ -334,7 +334,7 @@ class _Osx_Win32(_BaseOsx):
         self.exec_command('md %s' % os.path.normpath(path), shell=True)  # mkdir will conflict with cygwin
 
 
-if os.name == 'nt':
+if _IS_OS_WIN32:
     Osx = _Osx_Win32
 else:
     raise NotImplementedError('Unsupported os.')
