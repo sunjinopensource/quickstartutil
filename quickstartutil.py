@@ -13,6 +13,9 @@ try:
 except ImportError:
     import xml.etree.ElementTree as ElementTree
 
+
+# In python 3, os must be imported again at the end
+import os
 if os.name == 'nt':
     import msvcrt
     _IS_OS_WIN32 = True
@@ -28,6 +31,7 @@ __all__ = ['Error',
            'SvnError', 'SvnNoMessageError', 'SvnAlreadyLockedError', 'SvnBranchDestinationAlreadyExistError',
            'GitError', 'GitParseMetaDataError',
            'set_logger', 'set_local_encoding',
+           'raw_input_nonblock',
            'Osx', 'osx',
            'Svn', 'svn',
            'Git', 'git',
@@ -138,21 +142,6 @@ class GitParseMetaDataError(GitError):
         SvnError.__init__(self, "git meta data error: %s" % msg)
 
 
-def _raw_input_nonblock_win32():
-    if msvcrt.kbhit():
-        return _raw_input()
-    return None
-
-def raw_input_nonblock():
-    """
-    return result of raw_input if has keyboard input, otherwise return None
-    """
-    if _IS_OS_WIN32:
-        return _raw_input_nonblock_win32()
-    else:
-        raise NotImplementedError('Unsupported os.')
-
-
 _logger = logging.getLogger('quickstartutil')
 def set_logger(logger):
     global _logger
@@ -183,6 +172,21 @@ def _to_local_str(s):
         return s
     else:
         return _to_unicode_str(s).encode(_local_encoding)
+
+
+def _raw_input_nonblock_win32():
+    if msvcrt.kbhit():
+        return _raw_input()
+    return None
+
+def raw_input_nonblock():
+    """
+    return result of raw_input if has keyboard input, otherwise return None
+    """
+    if _IS_OS_WIN32:
+        return _raw_input_nonblock_win32()
+    else:
+        raise NotImplementedError('Unsupported os.')
 
 
 class _BaseOsx:
@@ -820,7 +824,7 @@ class Zip:
             os.makedirs(unzip_to_dir)
         zf_obj = zipfile.ZipFile(zip_file_path)
         for name in zf_obj.namelist():
-            name = name.replace('\\','/')
+            name = name.replace('\\', '/')
             if name.endswith('/'):
                 ext_dir = os.path.join(unzip_to_dir, name)
                 if not os.path.exists(ext_dir):
@@ -829,7 +833,7 @@ class Zip:
                 ext_filename = os.path.join(unzip_to_dir, name)
                 ext_dir= os.path.dirname(ext_filename)
                 if not os.path.exists(ext_dir):
-                    os.mkdir(ext_dir,0777)
+                    os.mkdir(ext_dir)
                 outfile = open(ext_filename, 'wb')
                 outfile.write(zf_obj.read(name))
                 outfile.close()
