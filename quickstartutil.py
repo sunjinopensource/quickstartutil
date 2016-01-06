@@ -7,10 +7,17 @@ import subprocess
 import tempfile
 import sqlite3
 import zipfile
+
 try:
     import xml.etree.cElementTree as ElementTree
 except ImportError:
     import xml.etree.ElementTree as ElementTree
+
+if os.name == 'nt':
+    import msvcrt
+    _IS_OS_WIN32 = True
+else:
+    _IS_OS_WIN32 = False
 
 
 __version__ = '0.1.18'
@@ -30,9 +37,11 @@ __all__ = ['Error',
 if sys.version_info[0] == 3:
     _PY3 = True
     _unicode = str
+    _raw_input = input
 else:
     _PY3 = False
     _unicode = unicode
+    _raw_input = raw_input
 
 
 class Error(Exception):
@@ -127,6 +136,21 @@ class GitError(Error):
 class GitParseMetaDataError(GitError):
     def __init__(self, msg):
         SvnError.__init__(self, "git meta data error: %s" % msg)
+
+
+def _raw_input_nonblock_win32():
+    if msvcrt.kbhit():
+        return _raw_input()
+    return None
+
+def raw_input_nonblock():
+    """
+    return result of raw_input if has keyboard input, otherwise return None
+    """
+    if os.name == 'nt':
+        return _raw_input_nonblock_win32()
+    else:
+        raise NotImplementedError('Unsupported os.')
 
 
 _logger = logging.getLogger('quickstartutil')
