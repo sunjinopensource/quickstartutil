@@ -23,7 +23,7 @@ else:
     _IS_OS_WIN32 = False
 
 
-__version__ = '0.1.20'
+__version__ = '0.1.21'
 
 
 __all__ = ['Error',
@@ -785,8 +785,10 @@ class Git:
 
         with self.osx.ChangeDirectory(path):
             self.exec_sub_command('checkout HEAD .')
-            self.exec_sub_command('pull')
             current_branch_name, current_revision = self.get_current_branch()
+            if current_branch_name == branch_name and current_revision.startswith(revision):
+                return
+            self.exec_sub_command('pull')
             if current_branch_name != branch_name:
                 self.exec_sub_command('checkout ' + branch_name)
             if not current_revision.startswith(revision):

@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.21
++ fix Git.clone_or_checkout_clean
+
 ## 0.1.20
 + Git.clone & Git.clone_or_checkout_clean
 
