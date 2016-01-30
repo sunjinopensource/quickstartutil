@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.20
++ Git.clone & Git.clone_or_checkout_clean
+
+## 0.1.19
++ raw_input_nonblock
+
 ## 0.1.18
 + fix Git.get_current_branch
 
@@ -29,9 +35,6 @@
 
 ## 0.1.9
 + unified into Osx
-
-## 0.1.9
-+ raw_input_nonblock
 
 ## 0.1.8
 + OSX

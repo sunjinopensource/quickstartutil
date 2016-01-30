@@ -23,7 +23,7 @@ else:
     _IS_OS_WIN32 = False
 
 
-__version__ = '0.1.19'
+__version__ = '0.1.20'
 
 
 __all__ = ['Error',
@@ -774,6 +774,23 @@ class Git:
                 raise GitParseMetaDataError("Can't parse revision from %s: %s" % (refs_heads_path, str(e)))
 
         return (branch_name, revision)
+
+    def clone(self, url, path):
+        cmd = 'clone ' + url + ' ' + path
+        self.exec_sub_command(cmd)
+
+    def clone_or_checkout_clean(self, url, path, branch_name='master', revision='HEAD'):
+        if not os.path.exists(path):
+            self.clone(url, path)
+
+        with self.osx.ChangeDirectory(path):
+            self.exec_sub_command('checkout HEAD .')
+            self.exec_sub_command('pull')
+            current_branch_name, current_revision = self.get_current_branch()
+            if current_branch_name != branch_name:
+                self.exec_sub_command('checkout ' + branch_name)
+            if not current_revision.startswith(revision):
+                self.exec_sub_command("reset %s --hard" % revision)
 
 
 # default Git object
