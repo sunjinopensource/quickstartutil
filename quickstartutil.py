@@ -23,7 +23,7 @@ else:
     _IS_OS_WIN32 = False
 
 
-__version__ = '0.1.21'
+__version__ = '0.1.22'
 
 
 __all__ = ['Error',
@@ -411,20 +411,22 @@ class Svn:
         return False
 
     def __init__(self, user_pass=None, interactive=False):
-        self.str_user_pass_option = self.stringing_user_pass_option(user_pass)
         self.base_command = 'svn'
-        if not interactive:
-            self.base_command += ' --non-interactive'
+        self.str_user_pass_option = self.stringing_user_pass_option(user_pass)
+        self.str_interactive_option = '' if interactive else '--non-interactive'
         self.osx = Osx()
+
+    def set_base_command(self, base_command):
+        self.base_command = base_command
 
     def set_redirect_output_to_log(self, redirect_output_to_log=True):
         self.osx.set_redirect_output_to_log(redirect_output_to_log)
 
     def exec_sub_command(self, sub_command):
-        self.osx.exec_command(self.base_command + ' ' + sub_command)
+        self.osx.exec_command(self.base_command + ' ' + sub_command + ' ' + self.str_interactive_option)
 
     def exec_sub_command_output(self, sub_command):
-        return self.osx.exec_command_output(self.base_command + ' ' + sub_command)
+        return self.osx.exec_command_output(self.base_command + ' ' + sub_command + ' ' + self.str_interactive_option)
 
     def is_valid_svn_path(self, path):
         cmd = 'info ' + path
@@ -744,6 +746,9 @@ class Git:
         self.meta_data_base_dir = '.git'
         self.osx = Osx()
 
+    def set_base_command(self, base_command):
+        self.base_command = base_command
+
     def set_redirect_output_to_log(self, redirect_output_to_log=True):
         self.osx.set_redirect_output_to_log(redirect_output_to_log)
 
@@ -779,21 +784,17 @@ class Git:
         cmd = 'clone ' + url + ' ' + path
         self.exec_sub_command(cmd)
 
-    def clone_or_checkout_clean(self, url, path, branch_name='master', revision='HEAD'):
+    def get_clean(self, url, path, branch_name='master', revision=None):
         if not os.path.exists(path):
             self.clone(url, path)
 
         with self.osx.ChangeDirectory(path):
-            self.exec_sub_command('checkout HEAD .')
-            current_branch_name, current_revision = self.get_current_branch()
-            if current_branch_name == branch_name and current_revision.startswith(revision):
-                return
-            self.exec_sub_command('pull')
-            if current_branch_name != branch_name:
-                self.exec_sub_command('checkout ' + branch_name)
-            if not current_revision.startswith(revision):
-                self.exec_sub_command("reset %s --hard" % revision)
-
+            self.exec_sub_command('reset --hard')  # revert local changes
+            self.exec_sub_command('fetch')
+            self.exec_sub_command('checkout ' + branch_name)
+            self.exec_sub_command('merge origin/' + branch_name)  # set current branch to newest
+            if revision is not None:
+                self.exec_sub_command('reset %s --hard' % revision)
 
 # default Git object
 git = Git()
