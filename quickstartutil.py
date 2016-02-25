@@ -848,12 +848,12 @@ class Zip:
             if name.endswith('/'):
                 ext_dir = os.path.join(unzip_to_dir, name)
                 if not os.path.exists(ext_dir):
-                    os.mkdir(ext_dir)
+                    os.makedirs(ext_dir)
             else:
                 ext_filename = os.path.join(unzip_to_dir, name)
                 ext_dir= os.path.dirname(ext_filename)
                 if not os.path.exists(ext_dir):
-                    os.mkdir(ext_dir)
+                    os.makedirs(ext_dir)
                 outfile = open(ext_filename, 'wb')
                 outfile.write(zf_obj.read(name))
                 outfile.close()
