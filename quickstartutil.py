@@ -23,7 +23,7 @@ else:
     _IS_OS_WIN32 = False
 
 
-__version__ = '0.1.24'
+__version__ = '0.1.25'
 
 
 __all__ = ['Error',
@@ -298,10 +298,10 @@ class _Osx_Win32(_BaseOsx):
         return shell
 
     def exec_command(self, cmd):
-        return _BaseOsx.exec_command(cmd, self._is_shell_command(cmd))
+        return _BaseOsx.exec_command(self, cmd, self._is_shell_command(cmd))
 
     def exec_command_output(self, cmd):
-        return _BaseOsx.exec_command_output(cmd, self._is_shell_command(cmd))
+        return _BaseOsx.exec_command_output(self, cmd, self._is_shell_command(cmd))
 
     def remove_path(self, path, force=True):
         """

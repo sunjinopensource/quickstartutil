@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.25
++ fix 0.1.24 syntax error
+
 ## 0.1.24
 + auto deduce shell param for osx.exec_command&exec_command_output in Windows
 
