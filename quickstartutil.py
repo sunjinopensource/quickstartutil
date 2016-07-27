@@ -23,7 +23,7 @@ else:
     _IS_OS_WIN32 = False
 
 
-__version__ = '0.1.23'
+__version__ = '0.1.24'
 
 
 __all__ = ['Error',
@@ -287,6 +287,21 @@ class _BaseOsx:
 class _Osx_Win32(_BaseOsx):
     def __init__(self):
         _BaseOsx.__init__(self)
+        self._shell_command_list = ('dir', 'del', 'rd', 'md')
+
+    def _is_shell_command(self, cmd):
+        shell = False
+        for shell_cmd in self._shell_command_list:
+            if cmd.startswith(shell_cmd):
+                shell = True
+                break
+        return shell
+
+    def exec_command(self, cmd):
+        return _BaseOsx.exec_command(cmd, self._is_shell_command(cmd))
+
+    def exec_command_output(self, cmd):
+        return _BaseOsx.exec_command_output(cmd, self._is_shell_command(cmd))
 
     def remove_path(self, path, force=True):
         """
@@ -300,9 +315,9 @@ class _Osx_Win32(_BaseOsx):
                 raise OsxPathNotExistError(path)
 
         if self.is_dir(path):
-            self.exec_command('rd /s/q %s' % os.path.normpath(path), shell=True)
+            self.exec_command('rd /s/q %s' % os.path.normpath(path))
         elif self.is_file(path):
-            self.exec_command('del /f/q %s' % os.path.normpath(path), shell=True)
+            self.exec_command('del /f/q %s' % os.path.normpath(path))
         else:
             raise OsxPathTypeUnsupportedError(path, "'%s' is not a valid file or directory path" % path)
 
@@ -335,7 +350,7 @@ class _Osx_Win32(_BaseOsx):
                 return
             else:
                 raise OsxPathAlreadyExistError(path)
-        self.exec_command('md %s' % os.path.normpath(path), shell=True)  # mkdir will conflict with cygwin
+        self.exec_command('md %s' % os.path.normpath(path))  # mkdir will conflict with cygwin
 
 
 if _IS_OS_WIN32:
