@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.26
++ export OsxError
+
 ## 0.1.25
 + fix 0.1.24 syntax error
 

@@ -23,13 +23,16 @@ else:
     _IS_OS_WIN32 = False
 
 
-__version__ = '0.1.25'
+__version__ = '0.1.26'
 
 
 __all__ = ['Error',
+           'OsxError',
            'OsxSystemExecError', 'OsxPathError', 'OsxPathNotExistError', 'OsxPathAlreadyExistError', 'OsxPathTypeUnsupportedError',
-           'SvnError', 'SvnNoMessageError', 'SvnAlreadyLockedError', 'SvnBranchDestinationAlreadyExistError',
-           'GitError', 'GitParseMetaDataError',
+           'SvnError',
+           'SvnNoMessageError', 'SvnAlreadyLockedError', 'SvnBranchDestinationAlreadyExistError',
+           'GitError', 
+           'GitParseMetaDataError',
            'set_logger', 'set_local_encoding',
            'raw_input_nonblock',
            'Osx', 'osx',
