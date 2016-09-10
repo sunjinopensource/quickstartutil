@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.1.27
++ Tar, tar
+
 ## 0.1.26
 + export OsxError
 
