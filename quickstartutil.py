@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 import sqlite3
 import zipfile
+import tarfile
 
 try:
     import xml.etree.cElementTree as ElementTree
@@ -23,7 +24,7 @@ else:
     _IS_OS_WIN32 = False
 
 
-__version__ = '0.1.26'
+__version__ = '0.1.27'
 
 
 __all__ = ['Error',
@@ -38,7 +39,8 @@ __all__ = ['Error',
            'Osx', 'osx',
            'Svn', 'svn',
            'Git', 'git',
-           'Zip', 'zip']
+           'Zip', 'zip',
+           'Tar', 'tar']
 
 
 if sys.version_info[0] == 3:
@@ -876,6 +878,23 @@ class Zip:
                 outfile.write(zf_obj.read(name))
                 outfile.close()
 
-
 # default Zip object
 zip = Zip()
+
+
+class Tar:
+    """
+    A tar helper.
+    """
+    def __init__(self, mode='gz'):
+        self.mode = mode
+
+    def untar(self, tar_path, target_path):
+        tar_obj = tarfile.open(tar_path, 'r:%s' % self.mode)
+        file_names = tar.getnames()
+        for file_name in file_names:
+            tar_obj.extract(file_name, target_path)
+        tar_obj.close()
+
+# default Tar object
+tar = Tar()
